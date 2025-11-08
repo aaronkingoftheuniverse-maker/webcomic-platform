@@ -2,34 +2,44 @@
  * Prisma Seed Script for Webcomic Platform MVP
  * --------------------------------------------
  * Creates:
- *  - Admin and User accounts
+ *  - Admin and User accounts (with bcrypt-hashed passwords)
  *  - A sample Comic with Posts and layered Images
  *  - A Comment linked safely by post slug
  */
 
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
+
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("🌱 Starting seed...");
-// development-only: wipe tables so seed is idempotent
-await prisma.comment.deleteMany({});
-await prisma.image.deleteMany({});
-await prisma.post.deleteMany({});
-await prisma.comic.deleteMany({});
-await prisma.setting.deleteMany({});
-await prisma.user.deleteMany({});
 
-  // ------------------------
+  // ------------------------------------------
+  // DEVELOPMENT-ONLY: wipe tables for idempotent seeds
+  // ------------------------------------------
+  await prisma.comment.deleteMany({});
+  await prisma.image.deleteMany({});
+  await prisma.post.deleteMany({});
+  await prisma.comic.deleteMany({});
+  await prisma.setting.deleteMany({});
+  await prisma.user.deleteMany({});
+
+  // ------------------------------------------
   // USERS
-  // ------------------------
+  // ------------------------------------------
+  console.log("👤 Seeding users...");
+
+  const adminPassword = await bcrypt.hash("admin123", 10);
+  const userPassword = await bcrypt.hash("password123", 10);
+
   const admin = await prisma.user.upsert({
     where: { email: "admin@example.com" },
     update: {},
     create: {
       username: "AdminUser",
       email: "admin@example.com",
-      password: "hashed_admin_password", // hash in production
+      passwordHash: adminPassword, // note: updated field name for clarity
       role: "ADMIN",
     },
   });
@@ -40,16 +50,18 @@ await prisma.user.deleteMany({});
     create: {
       username: "ReaderUser",
       email: "reader@example.com",
-      password: "hashed_password",
+      passwordHash: userPassword,
       role: "USER",
     },
   });
 
-  console.log("✅ Users seeded");
+  console.log("✅ Users created:", { admin: admin.email, user: user.email });
 
-  // ------------------------
+  // ------------------------------------------
   // COMICS + POSTS + IMAGES
-  // ------------------------
+  // ------------------------------------------
+  console.log("📚 Seeding comics, posts, and images...");
+
   await prisma.$transaction([
     prisma.comic.create({
       data: {
@@ -134,9 +146,11 @@ await prisma.user.deleteMany({});
 
   console.log("✅ Comics, posts, and images seeded");
 
-  // ------------------------
-  // COMMENTS (linked by slug)
-  // ------------------------
+  // ------------------------------------------
+  // COMMENTS (linked by post slug)
+  // ------------------------------------------
+  console.log("💬 Seeding comment...");
+
   const targetPost = await prisma.post.findUnique({
     where: { slug: "drift" },
   });
@@ -158,9 +172,9 @@ await prisma.user.deleteMany({});
   console.log("🌱 Seeding complete!");
 }
 
-// ------------------------
+// ------------------------------------------
 // EXECUTION WRAPPER
-// ------------------------
+// ------------------------------------------
 main()
   .then(async () => {
     await prisma.$disconnect();

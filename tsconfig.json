@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "types": ["next-auth"],
     "baseUrl": ".",
     "target": "esnext",
     "lib": [
