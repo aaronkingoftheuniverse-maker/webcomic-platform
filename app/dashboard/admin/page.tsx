@@ -1,0 +1,28 @@
+// app/dashboard/admin/page.tsx
+import { withPageAuth } from "@/lib/withPageAuth";
+import LoginLogsTable from "./components/LoginLogsTable";
+import ActivityLogsTable from "./components/ActivityLogsTable";
+
+export default async function AdminDashboardPage() {
+  // ✅ Enforce admin-only access before rendering
+  const session = await withPageAuth(["ADMIN"]);
+
+  return (
+    <div className="space-y-8 p-8">
+      <header>
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <p className="text-gray-600">Welcome back, {session.user.username} 👋</p>
+      </header>
+
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Login Logs</h2>
+        <LoginLogsTable />
+      </section>
+
+      <section>
+        <h2 className="text-xl font-semibold mb-4">API Activity Logs</h2>
+        <ActivityLogsTable />
+      </section>
+    </div>
+  );
+}

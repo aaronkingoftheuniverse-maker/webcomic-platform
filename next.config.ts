@@ -5,3 +5,6 @@ const nextConfig = {
 };
 export default nextConfig;
 
+export const proxy = {
+  matcher: ["/dashboard/:path*"],
+};

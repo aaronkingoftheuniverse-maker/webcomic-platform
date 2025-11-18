@@ -25,25 +25,36 @@ enum Role {
 // ----------------------
 
 model User {
-  id         Int       @id @default(autoincrement())
-  username   String    @unique @db.VarChar(100)
-  email      String    @unique @db.VarChar(150)
-  passwordHash   String
-  role       Role      @default(USER)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  comments   Comment[]
-  loginLogs    LoginLog[]
+  id            Int              @id @default(autoincrement())
+  username      String           @unique @db.VarChar(100)
+  email         String           @unique @db.VarChar(150)
+  passwordHash  String
+  role          Role             @default(USER)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  comments      Comment[]
+  loginLogs     LoginLog[]
+  apiAccessLogs ApiAccessLog[]
+  creatorProfile CreatorProfile? // <-- FIX 1: one-to-one link back to CreatorProfile
 }
 
 model Comic {
-  id          Int       @id @default(autoincrement())
-  title       String    @db.VarChar(150)
-  slug        String    @unique @db.VarChar(120)
-  description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  posts       Post[]
+  id                Int             @id @default(autoincrement())
+  title             String          @db.VarChar(150)
+  slug              String          @unique @db.VarChar(120)
+  description       String?
+  coverImage        String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  posts             Post[]
+
+  // FIX 2: link each comic to its creatorProfile
+  creatorProfile   CreatorProfile   @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+
+  creatorProfileId  Int
 
   @@index([slug])
 }
@@ -68,8 +79,8 @@ model Post {
 model Image {
   id              Int      @id @default(autoincrement())
   filename        String   @db.VarChar(255)
-  storagePath     String?  // supports local or cloud
-  storageProvider String?  // "local", "s3", etc.
+  storagePath     String?
+  storageProvider String?
   order           Int
   post            Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   postId          Int
@@ -95,8 +106,37 @@ model Setting {
 
 model LoginLog {
   id        Int      @id @default(autoincrement())
-  userId    Int
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  userId    Int?
+  success   Boolean   @default(false)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+  user      User?     @relation(fields: [userId], references: [id])
 }
 
+model ApiAccessLog {
+  id          Int       @id @default(autoincrement())
+  userId      Int?
+  endpoint    String
+  method      String
+  success     Boolean   @default(false)
+  statusCode  Int?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  user        User?     @relation(fields: [userId], references: [id])
+}
+
+model CreatorProfile {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @unique
+  user        User      @relation(fields: [userId], references: [id])
+  bio         String?
+  avatarUrl   String?
+  website     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // FIX 3: add reverse relation for Comic
+  comics      Comic[]
+}

@@ -1,7 +1,23 @@
 /* Simple, clear black/white/gray with magenta accents */
+
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+/* Theme variables */
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+}
+
+/* Base styles */
 body {
-  background-color: #fff;
-  color: #111;
+  background-color: var(--background);
+  color: var(--foreground);
   font-family: system-ui, sans-serif;
   margin: 0;
   padding: 0;
@@ -11,7 +27,6 @@ a {
   color: #d0007d;
   text-decoration: none;
 }
-
 a:hover {
   text-decoration: underline;
 }

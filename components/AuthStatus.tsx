@@ -14,12 +14,21 @@ export default function AuthStatus() {
 
   if (!session) {
     return (
-      <button
+      <div>
+        <button
         onClick={() => signIn()}
         className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition"
       >
         Sign In
       </button>
+        <p className="text-sm text-center">
+  Don’t have an account?{" "}
+  <a href="/signup" className="text-blue-600 hover:underline">
+    Sign up here
+  </a>
+</p>
+</div>
+      
     );
   }
 
@@ -28,6 +37,7 @@ export default function AuthStatus() {
 
   return (
     <div className="flex items-center gap-4">
+      
       {role === "ADMIN" && (
         <Link
           href="/admin/dashboard"
@@ -45,6 +55,7 @@ export default function AuthStatus() {
       >
         Sign Out
       </button>
+    
     </div>
   );
 }

@@ -4,6 +4,12 @@ import "./globals.css";
 import Providers from "./providers";
 import AuthStatus from "@/components/AuthStatus"; // ✅ import
 
+import { Toaster } from "@/components/ui/sonner";
+
+
+        <Toaster richColors position="top-right" />
+
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -28,7 +34,8 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900`}
-      >
+      >       
+      <Toaster richColors position="top-right" />
         <Providers>
           <header className="flex justify-between items-center p-4 border-b bg-white shadow-sm">
             <h1 className="text-lg font-semibold tracking-tight">

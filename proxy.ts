@@ -1,5 +1,6 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 const handler = withAuth(
   function proxy(req) {
@@ -7,30 +8,36 @@ const handler = withAuth(
     const token = req.nextauth?.token;
     const userRole = token?.role;
 
-    // 🔹 1. Not signed in → redirect to /signin
+    // 1. Redirect unauthenticated users
     if (!token) {
       const callbackUrl = encodeURIComponent(req.nextUrl.pathname);
       return NextResponse.redirect(`${origin}/signin?callbackUrl=${callbackUrl}`);
     }
 
-    // 🔹 2. Signed in but unauthorized (role check)
-    if (pathname.startsWith("/admin") && userRole !== "ADMIN") {
+    // 2. Unauthorized → Admin routes
+    // 🔧 FIX: must include leading slash
+    if (pathname.startsWith("/dashboard/admin") && userRole !== "ADMIN") {
       return NextResponse.redirect(new URL("/unauthorized", req.url));
     }
 
-    // 🔹 3. Authorized → allow through
+    // 3. Unauthorized → Creator routes
+    // 🔧 FIX: must include leading slash
+    if (pathname.startsWith("/dashboard/creator") && userRole !== "CREATOR") {
+      return NextResponse.redirect(new URL("/unauthorized", req.url));
+    }
+
     return NextResponse.next();
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token, // only run middleware for signed-in users
+      authorized: ({ token }) => !!token,
     },
   }
 );
 
 export default handler;
 
-// 🔹 Limit middleware to certain routes
+// Apply middleware only to specific routes
 export const config = {
-  matcher: ["/admin/:path*", "/profile/:path*"],
+  matcher: ["/dashboard/:path*", "/profile/:path*"],
 };
