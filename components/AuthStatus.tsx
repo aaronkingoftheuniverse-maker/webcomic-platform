@@ -7,55 +7,43 @@ export default function AuthStatus() {
   const { data: session, status } = useSession();
 
   if (status === "loading") {
-    return (
-      <div className="text-gray-500 text-sm animate-pulse">Checking auth...</div>
-    );
+    return <span className="text-gray-300 text-sm animate-pulse">Loading...</span>;
   }
 
   if (!session) {
     return (
-      <div>
-        <button
+      <button
         onClick={() => signIn()}
-        className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition"
+        className="text-sm underline hover:text-gray-300"
       >
-        Sign In
+        Login / Signup
       </button>
-        <p className="text-sm text-center">
-  Don’t have an account?{" "}
-  <a href="/signup" className="text-blue-600 hover:underline">
-    Sign up here
-  </a>
-</p>
-</div>
-      
     );
   }
 
   const username = session.user?.name || session.user?.email || "User";
-  const role = (session.user as any)?.role; // cast to any since NextAuth types may not include 'role'
 
   return (
-    <div className="flex items-center gap-4">
-      
-      {role === "ADMIN" && (
-        <Link
-          href="/admin/dashboard"
-          className="text-sm font-medium text-blue-700 hover:underline"
-        >
-          Dashboard
-        </Link>
-      )}
-      <span className="text-sm text-gray-700">
-        Signed in as <span className="font-semibold text-gray-900">{username}</span>
-      </span>
-      <button
-        onClick={() => signOut({ callbackUrl: "/signin" })}
-        className="px-3 py-1 text-sm font-medium text-white bg-gray-600 rounded hover:bg-gray-700 transition"
-      >
-        Sign Out
-      </button>
-    
+    <div className="flex items-center gap-3 text-sm">
+      {/* Profile placeholder circle */}
+      <div className="w-6 h-6 bg-white rounded-full" />
+
+      <span className="hidden sm:inline">Welcome, {username}!</span>
+
+      <Link href="/dashboard" className="nav_link">
+        Dashboard
+      </Link>
+
+<a
+  href="#"
+  onClick={(e) => {
+    e.preventDefault(); // prevent page jump
+    signOut({ callbackUrl: "/" });
+  }}
+  className="nav_link"
+>
+  Logout
+</a>
     </div>
   );
 }

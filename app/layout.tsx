@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
 import Providers from "./providers";
-import AuthStatus from "@/components/AuthStatus"; // ✅ import
-
+import Header from "@/components/ui/header/Header";
 import { Toaster } from "@/components/ui/sonner";
-
-
-        <Toaster richColors position="top-right" />
-
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,24 +21,17 @@ export const metadata: Metadata = {
   description: "A Next.js webcomic platform",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900`}
-      >       
-      <Toaster richColors position="top-right" />
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 min-h-screen`}
+      >
         <Providers>
-          <header className="flex justify-between items-center p-4 border-b bg-white shadow-sm">
-            <h1 className="text-lg font-semibold tracking-tight">
-              Webcomic Platform
-            </h1>
-            <AuthStatus />
-          </header>
+          <Toaster richColors position="top-right" />
+          <Header />
+
+          {/* Page content */}
           <main className="p-6">{children}</main>
         </Providers>
       </body>

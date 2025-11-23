@@ -1,33 +1,27 @@
-// types/next-auth.d.ts
-
-import { DefaultSession, DefaultUser } from "next-auth";
-
-// Your Prisma role enum:
-export type AppRole = "ADMIN" | "CREATOR" | "PRO_CREATOR" | "USER";
+// /types/next-auth.d.ts
+import "next-auth";
+import "next-auth/jwt";
 
 declare module "next-auth" {
-  interface User extends DefaultUser {
+  interface User {
     id: number;
-    role: AppRole;
-    username: string | null;
     email: string | null;
+    username: string | null;
+    role: "USER" | "ADMIN";
+    hasCreatorProfile: boolean;
   }
 
   interface Session {
-    user: {
-      id: number;
-      role: AppRole;
-      username: string | null;
-      email: string | null;
-    } & DefaultSession["user"];
+    user: User;
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
     id: number;
-    role: AppRole;
-    username: string | null;
     email: string | null;
+    username: string | null;
+    role: "USER" | "ADMIN";
+    hasCreatorProfile: boolean;
   }
 }

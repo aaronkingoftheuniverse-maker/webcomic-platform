@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/config/prisma";
-import { withAuth } from "@/lib/withAuthorization";
+import { apiAuth } from "@/lib/auth";
+import { ROLES } from "@/lib/roles";
 
 /**
  * GET /api/admin/activity-logs
@@ -8,10 +9,12 @@ import { withAuth } from "@/lib/withAuthorization";
  * Supports filters:
  * - ?failedOnly=true
  * - ?userId=123
- * - ?ip=192.168.x.x
+ * - ?ip=192.168.x.x  
  * - ?page=1&limit=20
  */
-export const GET = withAuth(["ADMIN"], async (req) => {
+export async function GET(req: NextRequest) {
+  await apiAuth([ROLES.ADMIN]);
+
   try {
     const { searchParams } = new URL(req.url);
 
@@ -55,4 +58,4 @@ export const GET = withAuth(["ADMIN"], async (req) => {
       { status: 500 }
     );
   }
-});
+};

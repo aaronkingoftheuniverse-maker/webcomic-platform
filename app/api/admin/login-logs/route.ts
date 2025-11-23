@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/config/prisma";
-import { withAuth } from "@/lib/withAuthorization";
+import { ROLES } from "@/lib/roles";
+import { apiAuth } from "@/lib/auth";
 
 /**
  * GET /api/admin/login-logs
@@ -11,7 +12,9 @@ import { withAuth } from "@/lib/withAuthorization";
  * - ?ip=192.168.x.x
  * - ?page=1&limit=20
  */
-export const GET = withAuth(["ADMIN"], async (req) => {
+export async function GET(req: NextRequest) {
+  await apiAuth([ROLES.ADMIN]);
+
   try {
     const { searchParams } = new URL(req.url);
 
@@ -55,4 +58,4 @@ export const GET = withAuth(["ADMIN"], async (req) => {
       { status: 500 }
     );
   }
-});
+};

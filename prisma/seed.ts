@@ -1,11 +1,13 @@
 /**
- * Prisma Seed Script for Webcomic Platform MVP
- * --------------------------------------------
+ * Prisma Seed Script (Hybrid Role Model)
+ * --------------------------------------
  * Creates:
- *  - Admin, User, and Creator accounts (with bcrypt-hashed passwords)
- *  - A CreatorProfile linked to the Creator user
- *  - A sample Comic (linked to the CreatorProfile) with Posts + Images
- *  - A Comment linked safely by post slug
+ *  - Admin user (role: ADMIN)
+ *  - Regular user (role: USER)
+ *  - User who becomes a Creator once they publish (has CreatorProfile)
+ *  - A CreatorProfile linked to creatorUser
+ *  - Comic + Posts + Images tied to creatorProfile
+ *  - A Comment from the regular User
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -39,7 +41,7 @@ async function main() {
   const userPassword = await bcrypt.hash("password123", 10);
   const creatorPassword = await bcrypt.hash("password123", 10);
 
-  const [admin, user, creatorUser] = await Promise.all([
+  const [admin, regularUser, creatorUser] = await Promise.all([
     prisma.user.create({
       data: {
         username: "AdminUser",
@@ -48,39 +50,41 @@ async function main() {
         role: "ADMIN",
       },
     }),
+
     prisma.user.create({
       data: {
-        username: "ReaderUser",
-        email: "reader@example.com",
+        username: "RegularUser",
+        email: "regular@example.com",
         passwordHash: userPassword,
         role: "USER",
       },
     }),
+
     prisma.user.create({
       data: {
         username: "CreatorUser",
         email: "creator@example.com",
         passwordHash: creatorPassword,
-        role: "CREATOR",
+        role: "USER", // IMPORTANT: creator is now just a user
       },
     }),
   ]);
 
   console.log("✅ Users created:", {
     admin: admin.email,
-    user: user.email,
+    regular: regularUser.email,
     creator: creatorUser.email,
   });
 
   // ------------------------------------------
-  // CREATOR PROFILE
+  // CREATOR PROFILE (hybrid method)
   // ------------------------------------------
   console.log("🧑‍🎨 Creating creator profile...");
 
   const creatorProfile = await prisma.creatorProfile.create({
     data: {
       userId: creatorUser.id,
-      bio: "Webcomic creator exploring sci-fi worlds.",
+      bio: "Sci-fi webcomic creator.",
       website: "https://example.com/star-drift",
       avatarUrl: "/avatars/creator.png",
     },
@@ -98,7 +102,7 @@ async function main() {
       title: "Star Drift",
       slug: "star-drift",
       description: "A sci-fi adventure through drifting galaxies.",
-      creatorProfileId: creatorProfile.id, // 🔗 tie to creator
+      creatorProfileId: creatorProfile.id,
       posts: {
         create: [
           {
@@ -107,32 +111,12 @@ async function main() {
             slug: "drift",
             description: "Our hero takes the first step beyond the stars.",
             images: {
-              create: [
-                {
-                  filename: "first.png",
-                  order: 1,
-                  storagePath: "public/uploads/posts/first.png",
-                  storageProvider: "local",
-                },
-                {
-                  filename: "first.png",
-                  order: 2,
-                  storagePath: "public/uploads/posts/first.png",
-                  storageProvider: "local",
-                },
-                {
-                  filename: "first.png",
-                  order: 3,
-                  storagePath: "public/uploads/posts/first.png",
-                  storageProvider: "local",
-                },
-                {
-                  filename: "first.png",
-                  order: 4,
-                  storagePath: "public/uploads/posts/first.png",
-                  storageProvider: "local",
-                },
-              ],
+              create: Array.from({ length: 4 }).map((_, i) => ({
+                filename: "first.png",
+                order: i + 1,
+                storagePath: "public/uploads/posts/first.png",
+                storageProvider: "local",
+              })),
             },
           },
           {
@@ -141,32 +125,12 @@ async function main() {
             slug: "collision",
             description: "An encounter with a rogue asteroid tests the crew.",
             images: {
-              create: [
-                {
-                  filename: "first.png",
-                  order: 1,
-                  storagePath: "public/uploads/posts/first.png",
-                  storageProvider: "local",
-                },
-                {
-                  filename: "first.png",
-                  order: 2,
-                  storagePath: "public/uploads/posts/first.png",
-                  storageProvider: "local",
-                },
-                {
-                  filename: "first.png",
-                  order: 3,
-                  storagePath: "public/uploads/posts/first.png",
-                  storageProvider: "local",
-                },
-                {
-                  filename: "first.png",
-                  order: 4,
-                  storagePath: "public/uploads/posts/first.png",
-                  storageProvider: "local",
-                },
-              ],
+              create: Array.from({ length: 4 }).map((_, i) => ({
+                filename: "first.png",
+                order: i + 1,
+                storagePath: "public/uploads/posts/first.png",
+                storageProvider: "local",
+              })),
             },
           },
         ],
@@ -177,7 +141,7 @@ async function main() {
   console.log("✅ Comic created:", comic.title);
 
   // ------------------------------------------
-  // COMMENTS (linked by post slug)
+  // COMMENTS
   // ------------------------------------------
   console.log("💬 Seeding comment...");
 
@@ -185,12 +149,14 @@ async function main() {
     where: { slug: "drift" },
   });
 
-  if (!targetPost) throw new Error("Expected seeded post with slug 'drift' not found.");
+  if (!targetPost) {
+    throw new Error("Expected seeded post with slug 'drift' not found.");
+  }
 
   await prisma.comment.create({
     data: {
-      content: "This is an amazing first episode!",
-      userId: user.id,
+      content: "Amazing start! Can't wait for more.",
+      userId: regularUser.id,
       postId: targetPost.id,
     },
   });

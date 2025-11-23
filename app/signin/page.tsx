@@ -40,6 +40,12 @@ export default function SignInPage() {
           Sign In
         </button>
       </form>
+      <div>
+        <span className="text-sm text-gray-600">Don't have an account? </span>
+        <a href="./signup" className="text-sm text-blue-600 underline">
+          Sign Up
+        </a>
+      </div>
     </div>
   );
 }

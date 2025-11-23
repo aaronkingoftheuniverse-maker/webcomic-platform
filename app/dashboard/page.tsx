@@ -1,36 +1,22 @@
-"use client";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+// app/dashboard/page.tsx
+import { requireAuth } from "@/lib/auth";
+import { ROLES } from "@/lib/roles";
+import { redirect } from "next/navigation";
 
-export default function DashboardRouter() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+export default async function DashboardRouterPage() {
+  const session = await requireAuth();
+  const { role } = session.user;
 
-  useEffect(() => {
-    if (status === "loading") return;
+  // Admin → Admin Dashboard
+  if (role === ROLES.ADMIN) {
+    redirect("/dashboard/admin");
+  }
 
-    if (!session) {
-      router.push("/signin");
-      return;
-    }
+  // User → Creator Dashboard
+  if (role === ROLES.USER) {
+    redirect("/dashboard/creator");
+  }
 
-    const role = session.user.role;
-
-    switch (role) {
-      case "ADMIN":
-        router.push("/dashboard/admin");
-        break;
-      case "CREATOR":
-        router.push("/dashboard/creator");
-        break;
-      case "PRO_CREATOR":
-        router.push("/dashboard/pro");
-        break;
-      default:
-        router.push("/unauthorized");
-    }
-  }, [session, status, router]);
-
-  return <div className="p-4 text-gray-500">Redirecting to your dashboard...</div>;
+  // Should never occur
+  redirect("/unauthorized");
 }

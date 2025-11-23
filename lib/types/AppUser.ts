@@ -1,6 +1,6 @@
 export interface AppUser {
   id: number | null;
-  role: "ADMIN" | "CREATOR" | "PRO_CREATOR" | "USER";
+  role: "ADMIN" | "USER";
   username: string | null;
   email: string | null;
 }

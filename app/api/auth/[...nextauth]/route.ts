@@ -1,11 +1,10 @@
+// app/api/auth/[...nextauth]/route.ts
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { prisma } from "@/config/prisma"; // shared singleton
 
-const prisma = new PrismaClient();
-
-// --- Define NextAuth configuration separately ---
+// NOTE: keep the provider list small; credentials provider example below
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -22,97 +21,85 @@ export const authOptions: NextAuthOptions = {
         const identifier = credentials.identifier.trim();
         const isEmail = identifier.includes("@");
 
-        // Grab IP + user agent if available
-        const ip = req?.headers?.["x-forwarded-for"] || "unknown";
-        const userAgent = req?.headers?.["user-agent"] || "unknown";
+        const ip = (req?.headers?.["x-forwarded-for"] as string) || "unknown";
+        const userAgent = (req?.headers?.["user-agent"] as string) || "unknown";
 
-        let user = null;
+        // Find user
+        const user = await prisma.user.findUnique({
+          where: isEmail ? { email: identifier } : { username: identifier },
+        });
 
-        try {
-          // Find user by email or username
-          user = await prisma.user.findUnique({
-            where: isEmail ? { email: identifier } : { username: identifier },
-          });
-
-          if (!user) {
-            // Log failed attempt (user not found)
-            await prisma.loginLog.create({
-              data: {
-                success: false,
-                ipAddress: String(ip),
-                userAgent,
-              },
-            });
-            throw new Error("User not found");
-          }
-
-          const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-          if (!valid) {
-            // Log failed attempt (wrong password)
-            await prisma.loginLog.create({
-              data: {
-                userId: user.id,
-                success: false,
-                ipAddress: String(ip),
-                userAgent,
-              },
-            });
-            throw new Error("Invalid password");
-          }
-
-          // Log successful attempt
+        if (!user) {
+          // Log failed attempt (no user)
           await prisma.loginLog.create({
-            data: {
-              userId: user.id,
-              success: true,
-              ipAddress: String(ip),
-              userAgent,
-            },
+            data: { success: false, ipAddress: String(ip), userAgent },
           });
-
-console.log("✅ Authorized user returned to NextAuth:", user);
-return {
-  id: user.id,
-  username: user.username,
-  email: user.email,
-  role: user.role,
-};
-        } catch (error) {
-          console.error("❌ Login failed:", error);
-          throw error;
+          throw new Error("User not found");
         }
+
+        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
+        if (!valid) {
+          await prisma.loginLog.create({
+            data: { userId: user.id, success: false, ipAddress: String(ip), userAgent },
+          });
+          throw new Error("Invalid password");
+        }
+
+        // Log successful attempt
+        await prisma.loginLog.create({
+          data: { userId: user.id, success: true, ipAddress: String(ip), userAgent },
+        });
+
+        // Determine whether this account has a CreatorProfile (creator tools)
+        const creatorProfile = await prisma.creatorProfile.findUnique({
+          where: { userId: user.id },
+        });
+        const hasCreatorProfile = Boolean(creatorProfile);
+
+        // Return shape that will be embedded into the JWT (via jwt callback)
+        return {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role, // "USER" or "ADMIN"
+          hasCreatorProfile,
+        } as any; // NextAuth will merge into JWT
       },
     }),
   ],
 
   session: { strategy: "jwt" },
 
-callbacks: {
-  async jwt({ token, user }) {
-    if (user) {
-      token.id = user.id; // ✅ Add id to token
-      token.role = user.role;
-      token.username = user.username;
-      token.email = user.email;
-    }
-    return token;
+  callbacks: {
+    async jwt({ token, user }) {
+      // On sign-in, `user` exists (from authorize). persist to token.
+      if (user) {
+        token.id = (user as any).id;
+        token.role = (user as any).role;
+        token.username = (user as any).username;
+        token.email = (user as any).email;
+        token.hasCreatorProfile = (user as any).hasCreatorProfile ?? false;
+      }
+      return token;
+    },
+
+    async session({ session, token }) {
+      // copy useful fields into session.user
+      if (token) {
+        (session.user as any).id = (token as any).id;
+        (session.user as any).role = (token as any).role;
+        (session.user as any).username = (token as any).username ?? null;
+        (session.user as any).email = (token as any).email ?? null;
+        (session.user as any).hasCreatorProfile = (token as any).hasCreatorProfile ?? false;
+      }
+      return session;
+    },
   },
-  async session({ session, token }) {
-    if (token) {
-      (session.user as any).id = token.id; // ✅ Preserve id into session
-      (session.user as any).role = token.role;
-      (session.user as any).username = token.username;
-      (session.user as any).email = token.email;
-    }
-    return session;
-  },
-},
 
   pages: {
     signIn: "/signin",
   },
 };
 
-// --- Pass options into NextAuth handler ---
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };

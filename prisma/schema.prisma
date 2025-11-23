@@ -1,5 +1,5 @@
 // ==========================================
-// Prisma Schema for Webcomic Platform (MVP)
+// Prisma Schema for Webcomic Platform (Unified Roles)
 // ==========================================
 
 generator client {
@@ -15,9 +15,8 @@ datasource db {
 // ENUMS
 // ----------------------
 enum Role {
-  USER
-  CREATOR
-  ADMIN
+  USER      // ← now the only “normal user” role
+  ADMIN     // ← admins remain unchanged
 }
 
 // ----------------------
@@ -25,19 +24,21 @@ enum Role {
 // ----------------------
 
 model User {
-  id            Int              @id @default(autoincrement())
-  username      String           @unique @db.VarChar(100)
-  email         String           @unique @db.VarChar(150)
-  passwordHash  String
-  role          Role             @default(USER)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id             Int              @id @default(autoincrement())
+  username       String           @unique @db.VarChar(100)
+  email          String           @unique @db.VarChar(150)
+  passwordHash   String
+  role           Role             @default(USER)  // ← CREATOR removed
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   // Relations
-  comments      Comment[]
-  loginLogs     LoginLog[]
-  apiAccessLogs ApiAccessLog[]
-  creatorProfile CreatorProfile? // <-- FIX 1: one-to-one link back to CreatorProfile
+  comments       Comment[]
+  loginLogs      LoginLog[]
+  apiAccessLogs  ApiAccessLog[]
+
+  // Creator profile is optional — created only when user becomes a creator
+  creatorProfile CreatorProfile?
 }
 
 model Comic {
@@ -51,10 +52,9 @@ model Comic {
 
   posts             Post[]
 
-  // FIX 2: link each comic to its creatorProfile
+  // Comic belongs to a creator profile (which belongs to a user)
   creatorProfile   CreatorProfile   @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
-
-  creatorProfileId  Int
+  creatorProfileId Int
 
   @@index([slug])
 }
@@ -66,10 +66,13 @@ model Post {
   slug        String    @unique @db.VarChar(120)
   date        DateTime  @default(now())
   description String?
+  
   comic       Comic     @relation(fields: [comicId], references: [id], onDelete: Cascade)
   comicId     Int
+
   images      Image[]
   comments    Comment[]
+  
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -82,18 +85,23 @@ model Image {
   storagePath     String?
   storageProvider String?
   order           Int
+      
   post            Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   postId          Int
+      
   createdAt       DateTime @default(now())
 }
 
 model Comment {
   id         Int       @id @default(autoincrement())
   content    String
+      
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     Int
+      
   post       Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
   postId     Int
+
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 }
@@ -111,6 +119,7 @@ model LoginLog {
   ipAddress String?
   userAgent String?
   createdAt DateTime  @default(now())
+
   user      User?     @relation(fields: [userId], references: [id])
 }
 
@@ -124,19 +133,23 @@ model ApiAccessLog {
   ipAddress   String?
   userAgent   String?
   createdAt   DateTime  @default(now())
+
   user        User?     @relation(fields: [userId], references: [id])
 }
 
 model CreatorProfile {
   id          Int       @id @default(autoincrement())
+    
+  // A user becomes a “creator” the moment they get this profile
   userId      Int       @unique
   user        User      @relation(fields: [userId], references: [id])
+
   bio         String?
   avatarUrl   String?
   website     String?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  // FIX 3: add reverse relation for Comic
   comics      Comic[]
 }

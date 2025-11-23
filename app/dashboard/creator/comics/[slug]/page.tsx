@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import api from "@/lib/apiClient";
 
 interface ComicDTO {
   id: number;
   title: string;
   slug: string;
-  description: string | null;
+  description?: string | null;
   coverImage?: string | null;
   createdAt: string;
 }
@@ -17,69 +18,42 @@ interface ComicDTO {
 interface PostDTO {
   id: number;
   title: string;
-  description: string | null;
+  description?: string | null;
   postNumber: number;
   createdAt: string;
 }
 
 export default function ComicDetailPage() {
   const router = useRouter();
- const { slug } = useParams();
-
+  const { slug } = useParams(); // comicSlug
 
   const [loading, setLoading] = useState(true);
   const [comic, setComic] = useState<ComicDTO | null>(null);
   const [posts, setPosts] = useState<PostDTO[]>([]);
 
-useEffect(() => {
-  if (!slug) return;
-  loadComicAndPosts();
-}, [slug]);
+  useEffect(() => {
+    if (!slug) return;
+    loadComicAndPosts();
+  }, [slug]);
 
   async function loadComicAndPosts() {
-  setLoading(true);
+    setLoading(true);
+    try {
+      const comicRes = await api.comics.get(slug);
+      setComic(comicRes.comic);
 
-  const idOrSlug = slug;
-
-  try {
-    // --- Load Comic ---
-
-const comicRes = await fetch(`/api/creator/comics/${idOrSlug}`);
-    const comicData = await comicRes.json();
-
-    if (!comicRes.ok) {
-      toast.error(comicData.error || "Failed to load comic.");
+      const postsRes = await api.posts.list(slug); // <- updated to use [slug]/posts
+      setPosts(postsRes.posts ?? []);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Failed to load comic or posts");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setComic(comicData.comic);
-
-    // --- Load Posts ---
-const postsRes = await fetch(`/api/creator/posts?comicId=${idOrSlug}`);
-    const postsData = await postsRes.json();
-
-    if (!postsRes.ok) {
-      toast.error(postsData.error || "Failed to load posts.");
-    } else {
-      setPosts(postsData.posts);
-    }
-
-  } catch (err) {
-    console.error(err);
-    toast.error("Unexpected error loading comic.");
   }
 
-  setLoading(false);
-}
-
-
   if (loading || !comic) {
-    return (
-      <div className="p-6 bg-white rounded-xl shadow-md max-w-xl">
-        Loading comic…
-      </div>
-    );
+    return <div className="p-6 bg-white rounded-xl shadow-md max-w-xl">Loading comic…</div>;
   }
 
   return (
@@ -89,9 +63,7 @@ const postsRes = await fetch(`/api/creator/posts?comicId=${idOrSlug}`);
 
       <Button
         className="mb-6"
-        onClick={() =>
-          router.push(`/dashboard/creator/comics/${slug}/posts/new`)
-        }
+        onClick={() => router.push(`/dashboard/creator/comics/${slug}/posts/new`)}
       >
         + New Post
       </Button>
@@ -106,14 +78,10 @@ const postsRes = await fetch(`/api/creator/posts?comicId=${idOrSlug}`);
             <div
               key={post.id}
               className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
-              onClick={() =>
-                router.push(`/dashboard/creator/comics/${slug}/posts/${post.id}`)
-              }
+              onClick={() => router.push(`/dashboard/creator/comics/${slug}/posts/${post.id}`)}
             >
               <h4 className="font-medium">{post.title}</h4>
-              <p className="text-sm text-gray-600 truncate">
-                {post.description}
-              </p>
+              <p className="text-sm text-gray-600 truncate">{post.description}</p>
             </div>
           ))}
         </div>

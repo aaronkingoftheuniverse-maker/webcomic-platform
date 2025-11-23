@@ -22,7 +22,7 @@ const handler = withAuth(
 
     // 3. Unauthorized → Creator routes
     // 🔧 FIX: must include leading slash
-    if (pathname.startsWith("/dashboard/creator") && userRole !== "CREATOR") {
+    if (pathname.startsWith("/dashboard/creator") && userRole !== "USER") {
       return NextResponse.redirect(new URL("/unauthorized", req.url));
     }
 

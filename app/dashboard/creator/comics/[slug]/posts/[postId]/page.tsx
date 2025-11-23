@@ -1,15 +1,20 @@
-export default async function PostDetailPage({ params }: PostDetailPageProps) {
-  const { postId } = params;
+import { notFound } from "next/navigation";
+import api from "@/lib/apiClient";
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/creator/posts/${postId}`,
-    { cache: "no-store" }
-  );
+export default async function PostDetailPage({
+  params,
+}: {
+  params: { slug: string; postId: string };
+}) {
+  const { slug, postId } = params;
+  let post;
 
-  const data = await res.json();
-  if (!res.ok) notFound();
-
-  const post = data.post; // FIXED
+  try {
+    const res = await api.posts.get(slug, Number(postId)); // <- updated to slug-based endpoint
+    post = res.post;
+  } catch {
+    notFound();
+  }
 
   return (
     <div className="space-y-4">

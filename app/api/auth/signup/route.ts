@@ -1,45 +1,36 @@
+// app/api/auth/signup/route.ts
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/config/prisma";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
-    const { username, email, password } = await req.json();
+    const body = await req.json();
+    const { username, email, password } = body ?? {};
 
-    // Basic validation
     if (!username || !email || !password) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Check if username or email already exists
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ email }, { username }],
-      },
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ username }, { email }] },
     });
 
-    if (existingUser) {
+    if (existing) {
       return NextResponse.json({ error: "Username or email already exists" }, { status: 400 });
     }
 
-    // Hash password before saving
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Create new user record
-    await prisma.user.create({
-      data: {
-        username,
-        email,
-        passwordHash,
-        role: "USER", // default role from your schema enum
-      },
+    const user = await prisma.user.create({
+      data: { username, email, passwordHash, role: "USER" },
     });
 
-    return NextResponse.json({ message: "User created successfully" }, { status: 201 });
-  } catch (error) {
-    console.error("Error during signup:", error);
+    // Optionally: do not create creatorProfile until user publishes first comic
+
+    return NextResponse.json({ ok: true, user: { id: user.id, username: user.username, email: user.email } }, { status: 201 });
+  } catch (err) {
+    console.error("Signup error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -1,8 +1,7 @@
+// /lib/roles.ts
 export const ROLES = {
-  ADMIN: "ADMIN",
-  CREATOR: "CREATOR",
-  PRO_CREATOR: "PRO_CREATOR",
   USER: "USER",
+  ADMIN: "ADMIN",
 } as const;
 
-export type Role = keyof typeof ROLES;
+export type Role = (typeof ROLES)[keyof typeof ROLES];

@@ -1,15 +1,18 @@
-import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth/roleCheck";
+// app/dashboard/creator/page.tsx
+import { requireRole } from "@/lib/auth";
+import { ROLES } from "@/lib/roles";
+import CreateProfilePrompt from "./CreateProfilePrompt";
+import FullCreatorDashboard from "./FullCreatorDashboard";
 
-export default async function CreatorDashboard() {
-  const { authorized, redirect: dest } = await requireRole(["CREATOR", "ADMIN"]);
+export default async function CreatorDashboardPage() {
+  // USER or ADMIN are allowed here
+  const session = await requireRole([ROLES.USER, ROLES.ADMIN]);
 
-  if (!authorized) redirect(dest);
+  const { hasCreatorProfile, username } = session.user;
 
-  return (
-    <div>
-      <h1>Creator Dashboard</h1>
-      <p>Manage your content here.</p>
-    </div>
-  );
+  if (!hasCreatorProfile) {
+    return <CreateProfilePrompt username={username} />;
+  }
+
+  return <FullCreatorDashboard session={session} />;
 }
