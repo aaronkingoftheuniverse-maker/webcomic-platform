@@ -10,17 +10,12 @@ export interface ComicDTO {
   creatorProfileId: number;
   createdAt: string;
   updatedAt: string;
+  episodeCount: number;
+  postCount: number;
 }
 
 export interface FetchComicsResponse {
-  comics: Array<{
-    id: number;
-    title: string;
-    slug: string;
-    description: string | null;
-    coverImage: string | null;
-    createdAt: string;
-  }>;
+  comics: ComicDTO[];
 }
 
 export interface CreateComicRequest {

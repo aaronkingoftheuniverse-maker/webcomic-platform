@@ -1,69 +1,127 @@
+// /api/creator/comics/[slug]/posts/[postId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/config/prisma";
-import { withAuth } from "@/lib/withAuthorization";
-import { requireCreatorProfile, assertOwnership, updatePostSchema } from "@/lib/creatorHelpers";
+import { apiAuth } from "@/lib/auth";
+import { requireCreatorProfile } from "@/lib/creatorHelpers";
+import { ROLES } from "@/lib/roles";
+import { CreatorProfileNotFoundError } from "@/lib/errors";
 
-// GET single post by postId in ctx.params
-export const GET = withAuth(["USER"], async (_, user, ctx) => {
-  const creatorProfile = await requireCreatorProfile(user.id);
-  const postId = Number(ctx.params.postId);
+// GET — fetch a single post
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { slug: string; postId: string } }
+) {
+  try {
+    const session = await apiAuth([ROLES.USER]);
+    const { slug } = await params;
+    const creatorProfile = await requireCreatorProfile(session.user.id);
 
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
-    include: { images: true, comic: { select: { creatorProfileId: true } } },
-  });
+    const postId = parseInt(params.postId, 10);
+    if (isNaN(postId)) {
+      return NextResponse.json({ error: "Invalid post ID" }, { status: 400 });
+    }
 
-  if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
-  assertOwnership(post.comic.creatorProfileId, creatorProfile.id);
+    const post = await prisma.post.findFirst({
+      where: {
+        id: postId,
+        comic: {
+          slug: slug,
+          creatorProfileId: creatorProfile.id,
+        },
+      },
+      include: {
+        images: {
+          orderBy: { id: "asc" },
+        },
+      },
+    });
 
-  return NextResponse.json(post);
-});
+    if (!post) {
+      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    }
 
-// PATCH update post
-export const PATCH = withAuth(["USER"], async (req, user, ctx) => {
-  const creatorProfile = await requireCreatorProfile(user.id);
-  const postId = Number(ctx.params.postId);
+    return NextResponse.json({ post });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
 
-  const parsed = updatePostSchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+// PATCH — update a post
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { slug: string; postId: string } }
+) {
+  try {
+    const session = await apiAuth([ROLES.USER]);
+    const creatorProfile = await requireCreatorProfile(session.user.id);
+    const body = await req.json();
 
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
-    include: { images: true, comic: { select: { creatorProfileId: true } } },
-  });
+    const postId = parseInt(params.postId, 10);
+    if (isNaN(postId)) {
+      return NextResponse.json({ error: "Invalid post ID" }, { status: 400 });
+    }
 
-  if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
-  assertOwnership(post.comic.creatorProfileId, creatorProfile.id);
+    const updated = await prisma.post.updateMany({
+      where: {
+        id: postId,
+        comic: {
+          slug: params.slug,
+          creatorProfileId: creatorProfile.id,
+        },
+      },
+      data: body,
+    });
 
-  const updated = await prisma.post.update({
-    where: { id: postId },
-    data: {
-      title: parsed.data.title ?? post.title,
-      description: parsed.data.description ?? post.description,
-      images: parsed.data.appendImages?.length
-        ? { create: parsed.data.appendImages.map((img, i) => ({ ...img, order: post.images.length + (i + 1) })) }
-        : undefined,
-    },
-    include: { images: true },
-  });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "Post not found or unauthorized" }, { status: 404 });
+    }
 
-  return NextResponse.json(updated);
-});
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
 
-// DELETE post
-export const DELETE = withAuth(["USER"], async (_, user, ctx) => {
-  const creatorProfile = await requireCreatorProfile(user.id);
-  const postId = Number(ctx.params.postId);
+// DELETE — delete a post
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { slug: string; postId: string } }
+) {
+  try {
+    const session = await apiAuth([ROLES.USER]);
+    const creatorProfile = await requireCreatorProfile(session.user.id);
 
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
-    include: { comic: { select: { creatorProfileId: true } } },
-  });
+    const postId = parseInt(params.postId, 10);
+    if (isNaN(postId)) {
+      return NextResponse.json({ error: "Invalid post ID" }, { status: 400 });
+    }
 
-  if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
-  assertOwnership(post.comic.creatorProfileId, creatorProfile.id);
+    const deleted = await prisma.post.deleteMany({
+      where: {
+        id: postId,
+        comic: {
+          slug: params.slug,
+          creatorProfileId: creatorProfile.id,
+        },
+      },
+    });
 
-  await prisma.post.delete({ where: { id: postId } });
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: "Post not found or unauthorized" }, { status: 404 });
+    }
 
-  return NextResponse.json({ ok: true });
-});
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
+
+// Shared error handler
+function handleRouteError(err: any) {
+  if (err instanceof CreatorProfileNotFoundError) {
+    return NextResponse.json({ error: err.message }, { status: 403 });
+  }
+  if (err instanceof NextResponse) return err;
+  console.error("[/api/creator/comics/[slug]/posts/[postId]] error:", err);
+  return NextResponse.json({ error: "Server error" }, { status: 500 });
+}

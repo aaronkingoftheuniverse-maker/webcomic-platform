@@ -37,12 +37,12 @@ export async function requireCreator(hasProfile: boolean = true) {
   return session;
 }
 
-/** Protect API routes */
+/** Protect API routes: throws instead of returning NextResponse */
 export async function apiAuth(allowedRoles: Role[] = [ROLES.USER]) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user || !allowedRoles.includes(session.user.role)) {
-    return new NextResponse("Unauthorized", { status: 401 });
+    throw NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   return session;

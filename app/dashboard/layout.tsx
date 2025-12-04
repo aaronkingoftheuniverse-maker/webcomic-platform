@@ -1,12 +1,12 @@
 // app/dashboard/layout.tsx
-import DashboardNav from "@/components/dashboard/DashboardNav";
+import SidebarServer from "@/components/dashboard/DashboardSidebar/SidebarServer";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       {/* Server-side Nav */}
-      <DashboardNav />
-
+     
+      <SidebarServer />
       <main className="flex-1 bg-gray-50 p-6">
         {children}
       </main>

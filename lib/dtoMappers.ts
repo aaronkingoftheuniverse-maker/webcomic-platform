@@ -43,6 +43,13 @@ export function mapPostToListItem(post: any): PostListItemDTO {
 
 /* Comic */
 export function mapComicToDTO(c: any): ComicDTO {
+  // Calculate total posts from nested episodes if the data is available
+  const postCount = Array.isArray(c.episodes)
+    ? c.episodes.reduce((sum: number, episode: any) => sum + (episode._count?.posts ?? 0), 0)
+    : 0;
+
+  const episodeCount = c._count?.episodes ?? 0;
+
   return {
     id: c.id,
     title: c.title,
@@ -52,5 +59,7 @@ export function mapComicToDTO(c: any): ComicDTO {
     creatorProfileId: c.creatorProfileId,
     createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : String(c.createdAt),
     updatedAt: c.updatedAt instanceof Date ? c.updatedAt.toISOString() : String(c.updatedAt),
+    episodeCount: episodeCount,
+    postCount: postCount,
   };
 }

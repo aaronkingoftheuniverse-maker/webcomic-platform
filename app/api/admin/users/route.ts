@@ -2,10 +2,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/config/prisma";
 import { apiAuth } from "@/lib/auth";
+import { ROLES } from "@/lib/roles";
 
-//
-// 1. Define the typed shape returned by this route
-//
 export interface AdminUserListItem {
   id: number;
   username: string | null;
@@ -14,15 +12,9 @@ export interface AdminUserListItem {
   createdAt: Date;
 }
 
-//
-// 2. GET /api/admin/users — Admin Only
-//
 export async function GET(req: Request): Promise<NextResponse<AdminUserListItem[]>> {
-  // Authorization (typed)
-    await apiAuth([ROLES.ADMIN]);
-  if (session instanceof NextResponse) return session;
+  await apiAuth([ROLES.ADMIN]); // guaranteed to return a session or throw 401
 
-  // Query (typed via select)
   const users = await prisma.user.findMany({
     select: {
       id: true,

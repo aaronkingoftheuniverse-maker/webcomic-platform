@@ -1,11 +1,23 @@
 import { prisma } from "@/config/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { CreatorProfileNotFoundError } from "./errors";
 
-export async function requireCreatorProfile(userId: number) {
-  const profile = await prisma.creatorProfile.findUnique({ where: { userId } });
-  if (!profile) throw NextResponse.json({ error: "Creator profile not found" }, { status: 403 });
-  return profile;
+/**
+ * Finds a creator profile for a user.
+ * @param userId The ID of the user.
+ * @throws {CreatorProfileNotFoundError} if the profile is not found.
+ */
+export async function requireCreatorProfile(userId: string) {
+  const creatorProfile = await prisma.creatorProfile.findUnique({
+    where: { userId },
+  });
+
+  if (!creatorProfile) {
+    throw new CreatorProfileNotFoundError();
+  }
+
+  return creatorProfile;
 }
 
 export function assertOwnership(resourceOwnerId: number, userOwnerId: number) {

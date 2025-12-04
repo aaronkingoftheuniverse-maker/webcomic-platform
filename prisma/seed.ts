@@ -25,6 +25,7 @@ async function main() {
   await prisma.comment.deleteMany({});
   await prisma.image.deleteMany({});
   await prisma.post.deleteMany({});
+  await prisma.episode.deleteMany({});
   await prisma.comic.deleteMany({});
   await prisma.creatorProfile.deleteMany({});
   await prisma.setting.deleteMany({});
@@ -95,50 +96,110 @@ async function main() {
   // ------------------------------------------
   // COMICS + POSTS + IMAGES
   // ------------------------------------------
-  console.log("📚 Seeding comics, posts, and images...");
+  console.log("📚 Seeding comics, episodes, posts, and images...");
 
   const comic = await prisma.comic.create({
     data: {
       title: "Star Drift",
       slug: "star-drift",
       description: "A sci-fi adventure through drifting galaxies.",
+      coverImage: "/covers/star-drift.png",
       creatorProfileId: creatorProfile.id,
-      posts: {
+      episodes: {
         create: [
+          // --- Episode 1 ---
           {
-            postNumber: 1,
-            title: "Pilot: Into the Drift",
-            slug: "drift",
-            description: "Our hero takes the first step beyond the stars.",
-            images: {
-              create: Array.from({ length: 4 }).map((_, i) => ({
-                filename: "first.png",
-                order: i + 1,
-                storagePath: "public/uploads/posts/first.png",
-                storageProvider: "local",
-              })),
+            episodeNumber: 1,
+            title: "Book 1: The Anomaly",
+            slug: "book-1-the-anomaly",
+            description: "The journey begins as the crew encounters a strange gravitational anomaly.",
+            thumbnailUrl: "/covers/book-1.png",
+            posts: {
+              create: {
+                postNumber: 1,
+                title: "Chapter 1: Into the Drift",
+                slug: "into-the-drift", // Used for comment target
+                description: "Our hero takes the first step beyond the stars.",
+                images: {
+                  create: Array.from({ length: 4 }).map((_, i) => ({
+                    filename: `drift-p${i + 1}.png`,
+                    order: i + 1,
+                    storagePath: `public/uploads/posts/drift-p${i + 1}.png`,
+                    storageProvider: "local",
+                  })),
+                },
+              },
             },
           },
+          // --- Episode 2 ---
           {
-            postNumber: 2,
-            title: "Episode 2: Collision",
-            slug: "collision",
-            description: "An encounter with a rogue asteroid tests the crew.",
-            images: {
-              create: Array.from({ length: 4 }).map((_, i) => ({
-                filename: "first.png",
-                order: i + 1,
-                storagePath: "public/uploads/posts/first.png",
-                storageProvider: "local",
-              })),
+            episodeNumber: 3, // Note: non-sequential to allow for nested episodes
+            title: "Book 2: Echoes",
+            slug: "book-2-echoes",
+            description: "A mysterious signal leads the crew to an ancient derelict ship.",
+            thumbnailUrl: "/covers/book-2.png",
+            posts: {
+              create: {
+                postNumber: 1,
+                title: "Chapter 2: Collision",
+                slug: "collision",
+                description: "An encounter with a rogue asteroid tests the crew.",
+                images: {
+                  create: Array.from({ length: 4 }).map((_, i) => ({
+                    filename: `collision-p${i + 1}.png`,
+                    order: i + 1,
+                    storagePath: `public/uploads/posts/collision-p${i + 1}.png`,
+                    storageProvider: "local",
+                  })),
+                },
+              },
             },
           },
         ],
       },
     },
+    include: {
+      episodes: { include: { posts: { include: { images: true } } } },
+    },
   });
 
   console.log("✅ Comic created:", comic.title);
+
+  // --- Create Nested Episode (must be done separately) ---
+  const parentEpisode = comic.episodes.find(
+    (ep) => ep.slug === "book-1-the-anomaly"
+  );
+
+  if (parentEpisode) {
+    await prisma.episode.create({
+      data: {
+        episodeNumber: 2,
+        title: "Book 1.5: Lost Signal",
+        slug: "book-1-lost-signal",
+        description: "A short story between books.",
+        thumbnailUrl: "/covers/book-1-5.png",
+        comicId: comic.id, // Explicitly set the comicId
+        parentId: parentEpisode.id, // Explicitly set the parentId
+      },
+    });
+    console.log("✅ Nested episode created.");
+  }
+
+  // ------------------------------------------
+  // SET POST THUMBNAILS
+  // ------------------------------------------
+  console.log("🖼️  Setting post thumbnails...");
+  const postsToUpdate = comic.episodes.flatMap((ep) => ep.posts);
+
+  for (const post of postsToUpdate) {
+    if (post.images.length > 0) {
+      await prisma.post.update({
+        where: { id: post.id },
+        data: { thumbnailImageId: post.images[0].id },
+      });
+    }
+  }
+  console.log(`✅ Thumbnails set for ${postsToUpdate.length} posts.`);
 
   // ------------------------------------------
   // COMMENTS
@@ -146,7 +207,7 @@ async function main() {
   console.log("💬 Seeding comment...");
 
   const targetPost = await prisma.post.findUnique({
-    where: { slug: "drift" },
+    where: { slug: "into-the-drift" },
   });
 
   if (!targetPost) {

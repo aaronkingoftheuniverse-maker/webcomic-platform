@@ -5,13 +5,28 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
+type ComicWithCounts = {
+  id: number;
+  title: string;
+  slug: string;
+  description: string | null;
+  episodeCount: number;
+  postCount: number;
+};
+
 export default function ComicsListPage() {
-  const [comics, setComics] = useState<any[]>([]);
+  const [comics, setComics] = useState<ComicWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/creator/comics")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          // If response is not 2xx, throw an error to be caught below
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        return res.json();
+      })
       .then((data) => {
         if (Array.isArray(data?.comics)) {
           setComics(data.comics);
@@ -55,6 +70,12 @@ export default function ComicsListPage() {
                   <p className="text-sm text-gray-600 line-clamp-2">
                     {comic.description || "No description"}
                   </p>
+                  <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                    <span>
+                      {comic.episodeCount} {comic.episodeCount === 1 ? "Episode" : "Episodes"}
+                    </span>
+                    <span>{comic.postCount} {comic.postCount === 1 ? "Post" : "Posts"}</span>
+                  </div>
                 </div>
                 <Link
                   href={`/dashboard/creator/comics/${comic.slug}`}

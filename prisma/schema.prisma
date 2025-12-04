@@ -15,8 +15,8 @@ datasource db {
 // ENUMS
 // ----------------------
 enum Role {
-  USER      // ← now the only “normal user” role
-  ADMIN     // ← admins remain unchanged
+  USER // ← now the only “normal user” role
+  ADMIN // ← admins remain unchanged
 }
 
 // ----------------------
@@ -24,132 +24,172 @@ enum Role {
 // ----------------------
 
 model User {
-  id             Int              @id @default(autoincrement())
-  username       String           @unique @db.VarChar(100)
-  email          String           @unique @db.VarChar(150)
-  passwordHash   String
-  role           Role             @default(USER)  // ← CREATOR removed
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(100)
+  email        String   @unique @db.VarChar(150)
+  passwordHash String
+  role         Role     @default(USER) // ← CREATOR removed
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
-  comments       Comment[]
-  loginLogs      LoginLog[]
-  apiAccessLogs  ApiAccessLog[]
+  comments      Comment[]
+  loginLogs     LoginLog[]
+  apiAccessLogs ApiAccessLog[]
 
   // Creator profile is optional — created only when user becomes a creator
   creatorProfile CreatorProfile?
 }
 
 model Comic {
-  id                Int             @id @default(autoincrement())
-  title             String          @db.VarChar(150)
-  slug              String          @unique @db.VarChar(120)
-  description       String?
-  coverImage        String?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-
-  posts             Post[]
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(150)
+  slug        String   @unique @db.VarChar(120)
+  description String?
+  coverImage  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Comic belongs to a creator profile (which belongs to a user)
-  creatorProfile   CreatorProfile   @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  creatorProfile   CreatorProfile @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
   creatorProfileId Int
+
+  // A comic is composed of episodes
+  episodes Episode[]
 
   @@index([slug])
 }
 
 model Post {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   postNumber  Int
-  title       String    @db.VarChar(150)
-  slug        String    @unique @db.VarChar(120)
-  date        DateTime  @default(now())
+  title       String   @db.VarChar(150)
+  slug        String   @unique @db.VarChar(120)
+  date        DateTime @default(now())
   description String?
-  
-  comic       Comic     @relation(fields: [comicId], references: [id], onDelete: Cascade)
-  comicId     Int
 
-  images      Image[]
-  comments    Comment[]
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  // A post belongs to an episode
+  episode   Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId Int
 
-  @@index([comicId, postNumber])
+  images   Image[]
+  comments Comment[]
+
+  // Optional: Designate one image as the thumbnail for this post
+  thumbnailImage   Image? @relation("PostThumbnail", fields: [thumbnailImageId], references: [id], onDelete: SetNull)
+  thumbnailImageId Int?   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([episodeId, postNumber])
 }
 
 model Image {
-  id              Int      @id @default(autoincrement())
-  filename        String   @db.VarChar(255)
+  id              Int     @id @default(autoincrement())
+  filename        String  @db.VarChar(255)
   storagePath     String?
   storageProvider String?
   order           Int
-      
-  post            Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  postId          Int
-      
-  createdAt       DateTime @default(now())
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId Int
+
+  createdAt DateTime @default(now())
+
+  // Back-relation for the thumbnail on Post
+  thumbnailForPost Post? @relation("PostThumbnail")
+}
+
+model Episode {
+  id            Int     @id @default(autoincrement())
+  episodeNumber Int
+  title         String  @db.VarChar(150)
+  slug          String  @unique @db.VarChar(120)
+  description   String?
+  thumbnailUrl  String?
+
+  // An episode belongs to one comic
+  comic   Comic @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  comicId Int
+
+  // --- Self-referencing relation for nesting episodes ---
+  // An episode can optionally belong to a parent episode
+  parentId Int?
+  parent   Episode? @relation("EpisodeNesting", fields: [parentId], references: [id], onDelete: NoAction)
+
+  // An episode can have many child episodes
+  childEpisodes Episode[] @relation("EpisodeNesting")
+  // ----------------------------------------------------
+
+  // An episode contains many posts
+  posts Post[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([comicId])
+  @@index([parentId])
 }
 
 model Comment {
-  id         Int       @id @default(autoincrement())
-  content    String
-      
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     Int
-      
-  post       Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  postId     Int
+  id      Int    @id @default(autoincrement())
+  content String
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId Int
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Setting {
-  id     Int    @id @default(autoincrement())
-  key    String @unique
-  value  String
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
 }
 
 model LoginLog {
   id        Int      @id @default(autoincrement())
   userId    Int?
-  success   Boolean   @default(false)
+  success   Boolean  @default(false)
   ipAddress String?
   userAgent String?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  user      User?     @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 }
 
 model ApiAccessLog {
-  id          Int       @id @default(autoincrement())
-  userId      Int?
-  endpoint    String
-  method      String
-  success     Boolean   @default(false)
-  statusCode  Int?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime  @default(now())
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  endpoint   String
+  method     String
+  success    Boolean  @default(false)
+  statusCode Int?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
 
-  user        User?     @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 }
 
 model CreatorProfile {
-  id          Int       @id @default(autoincrement())
-    
+  id Int @id @default(autoincrement())
+
   // A user becomes a “creator” the moment they get this profile
-  userId      Int       @unique
-  user        User      @relation(fields: [userId], references: [id])
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
 
-  bio         String?
-  avatarUrl   String?
-  website     String?
+  bio       String?
+  avatarUrl String?
+  website   String?
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  comics      Comic[]
+  comics Comic[]
 }

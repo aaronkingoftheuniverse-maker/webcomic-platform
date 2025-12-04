@@ -1,3 +1,4 @@
+// dashboard/creator/comics/[slug]/posts/new.tsx
 "use client";
 
 import { useState } from "react";
@@ -9,7 +10,8 @@ import { toast } from "sonner";
 import useUpload from "@/hooks/useUpload";
 import api from "@/lib/apiClient";
 
-export default function NewPostForm({ comicSlug }: { comicSlug: string }) {
+export default function NewPostPage({ params }: { params: { slug: string } }) {
+  const comicSlug = params.slug;
   const router = useRouter();
   const { uploadFiles, uploading } = useUpload();
 
@@ -18,26 +20,21 @@ export default function NewPostForm({ comicSlug }: { comicSlug: string }) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    setSelectedFiles(Array.from(e.target.files));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return toast.error("Title required");
 
     setSaving(true);
 
-    // Upload images first
     let uploadedImages = [];
-    if (selectedFiles.length > 0) {
+    if (selectedFiles.length) {
       const result = await uploadFiles(selectedFiles);
       if (!result.ok) {
         toast.error("Image upload failed");
         setSaving(false);
         return;
       }
+
       uploadedImages = result.urls.map((url) => ({
         filename: url.split("/").pop()!,
         storagePath: url,
@@ -46,14 +43,9 @@ export default function NewPostForm({ comicSlug }: { comicSlug: string }) {
     }
 
     try {
-      await api.posts.create(comicSlug, {
-        title,
-        description,
-        images: uploadedImages,
-        comicId: 0, // ignored; slug is authoritative
-      });
+      await api.posts.create(comicSlug, { title, description, images: uploadedImages });
       toast.success("Post created!");
-      router.push(`/dashboard/creator/comics/${comicSlug}/posts`);
+      router.push(`/dashboard/creator/comics/${comicSlug}`);
     } catch (err: any) {
       toast.error(err?.message || "Failed to create post");
     } finally {
@@ -75,7 +67,7 @@ export default function NewPostForm({ comicSlug }: { comicSlug: string }) {
 
       <div>
         <label className="block font-semibold mb-1">Images</label>
-        <input type="file" multiple onChange={handleImageSelect} />
+        <input type="file" multiple onChange={(e) => setSelectedFiles(Array.from(e.target.files ?? []))} />
       </div>
 
       <Button type="submit" disabled={saving || uploading}>
