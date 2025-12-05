@@ -103,7 +103,7 @@ async function main() {
       title: "Star Drift",
       slug: "star-drift",
       description: "A sci-fi adventure through drifting galaxies.",
-      coverImage: "/covers/star-drift.png",
+      coverImage: "uploads/comics/covers/star-drift-seed.png",
       creatorProfileId: creatorProfile.id,
       episodes: {
         create: [
@@ -113,7 +113,7 @@ async function main() {
             title: "Book 1: The Anomaly",
             slug: "book-1-the-anomaly",
             description: "The journey begins as the crew encounters a strange gravitational anomaly.",
-            thumbnailUrl: "/covers/book-1.png",
+            thumbnailUrl: "uploads/episodes/thumbnails/book-1-seed.png",
             posts: {
               create: {
                 postNumber: 1,
@@ -121,10 +121,9 @@ async function main() {
                 slug: "into-the-drift", // Used for comment target
                 description: "Our hero takes the first step beyond the stars.",
                 images: {
-                  create: Array.from({ length: 4 }).map((_, i) => ({
-                    filename: `drift-p${i + 1}.png`,
+                  create: Array.from({ length: 4 }).map((_, i) => ({ // Using static names for seed
+                    filename: `uploads/posts/images/drift-p${i + 1}-seed.png`,
                     order: i + 1,
-                    storagePath: `public/uploads/posts/drift-p${i + 1}.png`,
                     storageProvider: "local",
                   })),
                 },
@@ -137,7 +136,7 @@ async function main() {
             title: "Book 2: Echoes",
             slug: "book-2-echoes",
             description: "A mysterious signal leads the crew to an ancient derelict ship.",
-            thumbnailUrl: "/covers/book-2.png",
+            thumbnailUrl: "uploads/episodes/thumbnails/book-2-seed.png",
             posts: {
               create: {
                 postNumber: 1,
@@ -145,10 +144,9 @@ async function main() {
                 slug: "collision",
                 description: "An encounter with a rogue asteroid tests the crew.",
                 images: {
-                  create: Array.from({ length: 4 }).map((_, i) => ({
-                    filename: `collision-p${i + 1}.png`,
+                  create: Array.from({ length: 4 }).map((_, i) => ({ // Using static names for seed
+                    filename: `uploads/posts/images/collision-p${i + 1}-seed.png`,
                     order: i + 1,
-                    storagePath: `public/uploads/posts/collision-p${i + 1}.png`,
                     storageProvider: "local",
                   })),
                 },
@@ -177,7 +175,7 @@ async function main() {
         title: "Book 1.5: Lost Signal",
         slug: "book-1-lost-signal",
         description: "A short story between books.",
-        thumbnailUrl: "/covers/book-1-5.png",
+        thumbnailUrl: "uploads/episodes/thumbnails/book-1-5-seed.png",
         comicId: comic.id, // Explicitly set the comicId
         parentId: parentEpisode.id, // Explicitly set the parentId
       },

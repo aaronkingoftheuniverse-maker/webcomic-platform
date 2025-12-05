@@ -13,8 +13,10 @@ export async function GET(
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
-    const { slug } = await params;
-    const creatorProfile = await requireCreatorProfile(session.user.id);
+    const { slug } = params;
+    const userId = parseInt(session.user.id, 10);
+    if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
+    const creatorProfile = await requireCreatorProfile(userId);
 
     const postId = parseInt(params.postId, 10);
     if (isNaN(postId)) {
@@ -22,19 +24,23 @@ export async function GET(
     }
 
     const post = await prisma.post.findFirst({
-      where: {
-        id: postId,
-        comic: {
-          slug: slug,
-          creatorProfileId: creatorProfile.id,
-        },
+  where: {
+    id: postId,
+    // Traverse from Post -> Episode -> Comic
+    episode: {
+      comic: {
+        slug: slug,
+        creatorProfileId: creatorProfile.id,
       },
-      include: {
-        images: {
-          orderBy: { id: "asc" },
-        },
-      },
-    });
+    },
+  },
+  include: {
+    images: {
+      orderBy: { order: "asc" }, // It's good practice to order images
+    },
+    thumbnailImage: true, // Also include the thumbnail here
+  },
+});
 
     if (!post) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
@@ -53,7 +59,9 @@ export async function PATCH(
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
-    const creatorProfile = await requireCreatorProfile(session.user.id);
+    const userId = parseInt(session.user.id, 10);
+    if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
+    const creatorProfile = await requireCreatorProfile(userId);
     const body = await req.json();
 
     const postId = parseInt(params.postId, 10);
@@ -61,12 +69,26 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid post ID" }, { status: 400 });
     }
 
+    // Prevent immutable or sensitive fields from being updated via this generic endpoint.
+    // If you need to change these, create a dedicated API route with specific business logic.
+    if (body.slug) {
+      delete body.slug;
+    }
+    if (body.episodeId) {
+      delete body.episodeId;
+    }
+    if (body.postNumber) {
+      delete body.postNumber;
+    }
+
     const updated = await prisma.post.updateMany({
       where: {
         id: postId,
-        comic: {
-          slug: params.slug,
-          creatorProfileId: creatorProfile.id,
+        episode: {
+          comic: {
+            slug: params.slug,
+            creatorProfileId: creatorProfile.id,
+          },
         },
       },
       data: body,
@@ -89,7 +111,9 @@ export async function DELETE(
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
-    const creatorProfile = await requireCreatorProfile(session.user.id);
+    const userId = parseInt(session.user.id, 10);
+    if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
+    const creatorProfile = await requireCreatorProfile(userId);
 
     const postId = parseInt(params.postId, 10);
     if (isNaN(postId)) {
@@ -99,9 +123,11 @@ export async function DELETE(
     const deleted = await prisma.post.deleteMany({
       where: {
         id: postId,
-        comic: {
-          slug: params.slug,
-          creatorProfileId: creatorProfile.id,
+        episode: {
+          comic: {
+            slug: params.slug,
+            creatorProfileId: creatorProfile.id,
+          },
         },
       },
     });

@@ -6,26 +6,50 @@ import { requireCreatorProfile } from "@/lib/creatorHelpers";
 import { ROLES } from "@/lib/roles";
 import { CreatorProfileNotFoundError } from "@/lib/errors";
 
-// GET — fetch a single comic + its posts
+// This forces the route to be rendered dynamically on every request.
+export const dynamic = "force-dynamic";
+
+// Shared error handler
+function handleRouteError(err: any) {
+  if (err instanceof CreatorProfileNotFoundError) {
+    return NextResponse.json({ error: err.message }, { status: 403 });
+  }
+  if (err instanceof NextResponse) return err;
+  console.error("[/api/creator/comics/[slug]] error:", err);
+  return NextResponse.json({ error: "Server error" }, { status: 500 });
+}
+
+// GET — fetch a single comic + its episodes and posts
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
+  context: { params: { slug: string } }
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
-    const { slug } = await params;
+    // Failsafe method: Get the slug directly from the URL pathname.
+    const slug = req.nextUrl.pathname.split('/').pop()!;
+    console.log("\n--- [API] GET /api/creator/comics/[slug] ---");
+    console.log("[API] Received slug from URL:", slug);
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
     }
-    const creatorProfile = await requireCreatorProfile(session.user.id as number);
 
+    // ✅ FIX 2: Define creatorProfile before using it.
+    const userId = parseInt(session.user.id, 10);
+    if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
+    const creatorProfile = await requireCreatorProfile(userId);
+    console.log(`[API] Authenticated as user ID: ${userId}, creatorProfile ID: ${creatorProfile.id}`);
+
+    const whereClause = {
+      slug: slug,
+      creatorProfileId: creatorProfile.id,
+    };
+    console.log("[API] ==> Prisma query where clause:", whereClause);
+    
     const comic = await prisma.comic.findFirst({
-      where: {
-        slug: slug,
-        creatorProfileId: creatorProfile.id,
-      },
-      // Include the nested structure of episodes and posts
+      where: whereClause,
+      // Include the nested structure of episodes and posts with thumbnails
       include: {
         episodes: {
           where: { parentId: null }, // Fetch only top-level episodes
@@ -33,23 +57,24 @@ export async function GET(
           include: {
             posts: {
               orderBy: { postNumber: "asc" },
+              include: { thumbnailImage: true }, // Include post thumbnails
             },
-            // Include one level of nested child episodes
             childEpisodes: {
               orderBy: { episodeNumber: "asc" },
-              include: {
-                posts: { orderBy: { postNumber: "asc" } },
-              },
+              include: { posts: { orderBy: { postNumber: "asc" }, include: { thumbnailImage: true } } },
             },
           },
         },
       },
     });
 
+    console.log(`[API] <== Prisma query result: ${comic ? `Found comic '${comic.title}'` : "Not Found"}`);
+
     if (!comic) {
       return NextResponse.json({ error: "Comic not found" }, { status: 404 });
     }
 
+    console.log("--- [API] Request End ---");
     return NextResponse.json({ comic });
   } catch (err) {
     return handleRouteError(err);
@@ -59,16 +84,25 @@ export async function GET(
 // PATCH — update comic fields
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
+  { params }: { params: { slug: string } }
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
-    const { slug } = await params;
+    const { slug } = params;
     if (!session?.user?.id) {
       return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
     }
-    const creatorProfile = await requireCreatorProfile(session.user.id as number);
+
+    const userId = parseInt(session.user.id, 10);
+    if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
+    const creatorProfile = await requireCreatorProfile(userId);
+
     const body = await req.json();
+
+    // Prevent slug from being updated directly if it's in the body
+    if (body.slug) {
+      delete body.slug;
+    }
 
     const updated = await prisma.comic.updateMany({
       where: {
@@ -91,15 +125,18 @@ export async function PATCH(
 // DELETE — delete a comic
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
+  { params }: { params: { slug: string } }
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
-    const { slug } = await params;
+    const { slug } = params;
     if (!session?.user?.id) {
       return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
     }
-    const creatorProfile = await requireCreatorProfile(session.user.id as number);
+
+    const userId = parseInt(session.user.id, 10);
+    if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
+    const creatorProfile = await requireCreatorProfile(userId);
 
     const deleted = await prisma.comic.deleteMany({
       where: {
@@ -116,14 +153,4 @@ export async function DELETE(
   } catch (err) {
     return handleRouteError(err);
   }
-}
-
-// Shared error handler
-function handleRouteError(err: any) {
-  if (err instanceof CreatorProfileNotFoundError) {
-    return NextResponse.json({ error: err.message }, { status: 403 });
-  }
-  if (err instanceof NextResponse) return err;
-  console.error("[/api/creator/comics/[slug]] error:", err);
-  return NextResponse.json({ error: "Server error" }, { status: 500 });
 }

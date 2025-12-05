@@ -1,101 +1,188 @@
 // /lib/apiClient.ts
-import type {
+
+import {
+  CreateEpisodeRequest,
+  CreateEpisodeResponse,
+  FetchEpisodeResponse,
+  UpdateEpisodeRequest,
+  UpdateEpisodeResponse,
+} from "@/types/api/episodes";
+
+import {
   FetchComicsResponse,
   CreateComicRequest,
+  FetchComicDetailResponse, // Import new type
   CreateComicResponse,
   UpdateComicRequest,
   UpdateComicResponse,
 } from "@/types/api/comics";
-import type {
+
+import {
   FetchPostsResponse,
   CreatePostRequest,
   CreatePostResponse,
   FetchPostResponse,
   UpdatePostRequest,
+  UpdatePostResponse,
 } from "@/types/api/posts";
-import type { UploadResponse } from "@/types/api/uploads";
+
+import { UploadResponse } from "@/types/api/uploads";
+
+/* -------------------------------------------------------------------------- */
+/*                                  UTILITIES                                 */
+/* -------------------------------------------------------------------------- */
 
 async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const res = await fetch(input, { ...init, cache: "no-store" });
-  const text = await res.text();
+  const res = await fetch(input, {
+    ...init,
+    cache: "no-store",
+  });
+
+  const raw = await res.text();
 
   let data: any = {};
 
   try {
-    data = text ? JSON.parse(text) : {};
+    data = raw ? JSON.parse(raw) : {};
   } catch (err) {
     throw new Error(
-      `Invalid JSON response (${res instanceof Response ? res.status : "unknown"})`
+      `Invalid JSON response (status: ${res instanceof Response ? res.status : "unknown"})`
     );
   }
 
   if (!res.ok) {
-    const errMsg = data?.error || data?.message || `Request failed`;
-    const e = new Error(errMsg);
-    (e as any).status = res.status;
-    (e as any).body = data;
-    throw e;
+    const message = data?.error || data?.message || `Request failed`;
+    const error: any = new Error(message);
+    error.status = res.status;
+    error.body = data;
+    throw error;
   }
 
   return data as T;
 }
 
+/* -------------------------------------------------------------------------- */
+/*                                   CLIENT                                   */
+/* -------------------------------------------------------------------------- */
+
 export const api = {
+  /* --------------------------------- COMICS -------------------------------- */
   comics: {
     list: (): Promise<FetchComicsResponse> =>
       fetchJson("/api/creator/comics"),
 
-    create: (payload: CreateComicRequest): Promise<CreateComicResponse> =>
+    createWithJson: (
+      payload: CreateComicRequest
+    ): Promise<CreateComicResponse> =>
       fetchJson("/api/creator/comics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }),
 
-    get: (comicSlug: string | number) =>
+    createWithFormData: (payload: FormData): Promise<CreateComicResponse> =>
+      fetchJson("/api/creator/comics", {
+        method: "POST",
+        body: payload,
+      }),
+
+    get: (comicSlug: string | number): Promise<FetchComicDetailResponse> => // Use new type
       fetchJson(`/api/creator/comics/${comicSlug}`),
 
-    update: (comicSlug: string | number, payload: UpdateComicRequest): Promise<UpdateComicResponse> =>
+    update: (
+      comicSlug: string | number,
+      payload: UpdateComicRequest
+    ): Promise<UpdateComicResponse> =>
       fetchJson(`/api/creator/comics/${comicSlug}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }),
 
-    delete: (comicSlug: string | number) =>
+    delete: (comicSlug: string | number): Promise<{ ok: true }> =>
       fetchJson(`/api/creator/comics/${comicSlug}`, {
         method: "DELETE",
       }),
   },
 
-posts: {
-  listForComic: async (comicSlug: string) => 
-    fetchJson<FetchPostsResponse>(`/api/creator/comics/${comicSlug}/posts`),
+  /* -------------------------------- EPISODES ------------------------------- */
+  episodes: {
+    get: (
+      comicSlug: string,
+      episodeId: number
+    ): Promise<FetchEpisodeResponse> =>
+      fetchJson(`/api/creator/comics/${comicSlug}/episodes/${episodeId}`),
 
-  get: async (comicSlug: string, postId: number) =>
-    fetchJson<FetchPostResponse>(`/api/creator/comics/${comicSlug}/posts/${postId}`),
+    create: (
+      comicSlug: string,
+      payload: FormData
+    ): Promise<CreateEpisodeResponse> =>
+      fetchJson(`/api/creator/comics/${comicSlug}/episodes`, {
+        method: "POST",
+        body: payload,
+      }),
 
-  create: async (comicSlug: string, payload: CreatePostRequest) =>
-    fetchJson<CreatePostResponse>(`/api/creator/comics/${comicSlug}/posts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }),
+    update: (
+      comicSlug: string,
+      episodeId: number,
+      payload: UpdateEpisodeRequest
+    ): Promise<UpdateEpisodeResponse> =>
+      fetchJson(`/api/creator/comics/${comicSlug}/episodes/${episodeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+  },
 
-  update: async (comicSlug: string, postId: number, payload: UpdatePostRequest) =>
-    fetchJson<{ post: any }>(`/api/creator/comics/${comicSlug}/posts/${postId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }),
+  /* ---------------------------------- POSTS -------------------------------- */
+  posts: {
+    listForComic: (comicSlug: string): Promise<FetchPostsResponse> =>
+      fetchJson(`/api/creator/comics/${comicSlug}/posts`),
 
-  delete: async (comicSlug: string, postId: number) =>
-    fetchJson<{ ok: true }>(`/api/creator/comics/${comicSlug}/posts/${postId}`, {
-      method: "DELETE",
-    }),
-},
+    get: (
+      comicSlug: string,
+      postId: number
+    ): Promise<FetchPostResponse> =>
+      fetchJson(`/api/creator/comics/${comicSlug}/posts/${postId}`),
 
+create: async (comicSlug: string, payload: FormData) =>
+  fetchJson<CreatePostResponse>(`/api/creator/comics/${comicSlug}/posts`, {
+    method: "POST",
+    body: payload,
+  }),
 
+    // Modern structured JSON version
+    createLegacy: (
+      comicSlug: string,
+      payload: CreatePostRequest
+    ): Promise<CreatePostResponse> =>
+      fetchJson(`/api/creator/comics/${comicSlug}/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+
+    update: (
+      comicSlug: string,
+      postId: number,
+      payload: UpdatePostRequest
+    ): Promise<UpdatePostResponse> =>
+      fetchJson(`/api/creator/comics/${comicSlug}/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+
+    delete: (
+      comicSlug: string,
+      postId: number
+    ): Promise<{ ok: true }> =>
+      fetchJson(`/api/creator/comics/${comicSlug}/posts/${postId}`, {
+        method: "DELETE",
+      }),
+  },
+
+  /* -------------------------------- UPLOADS -------------------------------- */
   uploads: {
     uploadFiles: async (files: File[]): Promise<UploadResponse> => {
       const form = new FormData();

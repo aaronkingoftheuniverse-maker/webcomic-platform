@@ -18,7 +18,7 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-courier-prime), monospace;
   margin: 0;
   padding: 0;
 }
@@ -67,11 +67,11 @@ a:hover {
 
 button {
   cursor: pointer;
-  background: #d0007d;
-  color: #fff;
   border: none;
+  /*background: #d0007d;
+  color: #fff;
   border-radius: 0.375rem;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 1rem;*/
 }
 
 input {
