@@ -5,6 +5,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Loader2, ImageIcon } from "lucide-react";
+import api from "@/lib/apiClient";
+import { toast } from "sonner";
 
 type ComicWithCounts = {
   id: number;
@@ -31,27 +33,21 @@ export default function ComicsListPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/creator/comics")
-      .then((res) => {
-        if (!res.ok) {
-          // If response is not 2xx, throw an error to be caught below
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (Array.isArray(data?.comics)) {
-          setComics(data.comics);
-        } else {
-          console.error("Unexpected response:", data);
-          setComics([]);
-        }
-      })
-      .catch((err) => {
-        console.error("Error loading comics:", err);
-        setComics([]);
-      })
-      .finally(() => setLoading(false));
+    async function loadComics() {
+      try {
+        // Assuming an `api.comics.list()` method exists in your apiClient
+        const data = await api.comics.list();
+        setComics(data.comics);
+      } catch (error: any) {
+        console.error("Error loading comics:", error);
+        toast.error("Failed to load comics: " + error.message);
+        setComics([]); // Ensure comics is an empty array on error
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadComics();
   }, []);
 
   if (loading)

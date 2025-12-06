@@ -5,14 +5,16 @@ import { apiAuth } from "@/lib/auth";
 import { requireCreatorProfile } from "@/lib/creatorHelpers";
 import { ROLES } from "@/lib/roles";
 import { CreatorProfileNotFoundError } from "@/lib/errors";
+import { updatePostSchema } from "@/types/api/posts";
 
 // GET — fetch a single post
 export async function GET(
   req: NextRequest,
-  { params }: { params: { slug: string; postId: string } }
+  { params: paramsPromise }: { params: Promise<{ slug: string; postId: string }> }
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
+    const params = await paramsPromise;
     const { slug } = params;
     const userId = parseInt(session.user.id, 10);
     if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
@@ -55,33 +57,30 @@ export async function GET(
 // PATCH — update a post
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { slug: string; postId: string } }
+  { params: paramsPromise }: { params: Promise<{ slug: string; postId: string }> }
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
+    const params = await paramsPromise;
+
     const userId = parseInt(session.user.id, 10);
     if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
-    const creatorProfile = await requireCreatorProfile(userId);
-    const body = await req.json();
 
     const postId = parseInt(params.postId, 10);
     if (isNaN(postId)) {
       return NextResponse.json({ error: "Invalid post ID" }, { status: 400 });
     }
 
-    // Prevent immutable or sensitive fields from being updated via this generic endpoint.
-    // If you need to change these, create a dedicated API route with specific business logic.
-    if (body.slug) {
-      delete body.slug;
-    }
-    if (body.episodeId) {
-      delete body.episodeId;
-    }
-    if (body.postNumber) {
-      delete body.postNumber;
-    }
+    const creatorProfile = await requireCreatorProfile(userId);
+    const body = await req.json();
+    const validation = updatePostSchema.safeParse(body);
 
-    const updated = await prisma.post.updateMany({
+    if (!validation.success) {
+      return NextResponse.json({ error: "Invalid request body", details: validation.error.format() }, { status: 400 });
+    }
+    const { publishedAt, ...dataToUpdate } = validation.data;
+
+    const updatedPost = await prisma.post.updateMany({
       where: {
         id: postId,
         episode: {
@@ -91,14 +90,17 @@ export async function PATCH(
           },
         },
       },
-      data: body,
+      data: {
+        ...dataToUpdate,
+        publishedAt: typeof publishedAt === 'undefined' ? undefined : (publishedAt ? new Date(publishedAt) : null),
+      },
     });
 
-    if (updated.count === 0) {
+    if (updatedPost.count === 0) {
       return NextResponse.json({ error: "Post not found or unauthorized" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ ok: true });
   } catch (err) {
     return handleRouteError(err);
   }
@@ -107,10 +109,12 @@ export async function PATCH(
 // DELETE — delete a post
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { slug: string; postId: string } }
+  { params: paramsPromise }: { params: Promise<{ slug: string; postId: string }> }
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
+    const params = await paramsPromise;
+
     const userId = parseInt(session.user.id, 10);
     if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
     const creatorProfile = await requireCreatorProfile(userId);

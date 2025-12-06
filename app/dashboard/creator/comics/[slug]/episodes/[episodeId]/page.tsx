@@ -8,33 +8,12 @@ import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Loader2, Edit, Save, X, ImageIcon } from "lucide-react";
+import { Loader2, Edit, Save, X, ImageIcon, Calendar, CheckCircle, Edit2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import api from "@/lib/apiClient";
-
-interface PostDTO {
-  id: number;
-  title: string;
-  description?: string | null;
-  thumbnailImage?: { filename: string } | null;
-}
-
-interface ChildEpisodeDTO {
-  id: number;
-  title: string;
-  description?: string | null;
-  thumbnailUrl?: string | null;
-  posts: PostDTO[];
-}
-
-interface EpisodeDetailDTO {
-  id: number;
-  title: string;
-  description: string | null;
-  episodeNumber: number;
-  createdAt: string;
-  posts: PostDTO[];
-  childEpisodes: ChildEpisodeDTO[];
-}
+import { EpisodeDTO as EpisodeDetailDTO } from "@/types/api/episodes";
+import { PostDTO } from "@/types/api/posts";
 
 export default function EpisodeDetailPage() {
   const router = useRouter();
@@ -43,7 +22,7 @@ export default function EpisodeDetailPage() {
   const episodeId = Array.isArray(params.episodeId) ? params.episodeId[0] : params.episodeId;
 
   const [episode, setEpisode] = useState<EpisodeDetailDTO | null>(null);
-  const [editableEpisode, setEditableEpisode] = useState<Partial<EpisodeDetailDTO>>({});
+  const [editableEpisode, setEditableEpisode] = useState<Partial<EpisodeDetailDTO> | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -66,14 +45,15 @@ export default function EpisodeDetailPage() {
 
   const handleSave = async () => {
     if (!slug || !episodeId) return;
+    if (!editableEpisode) return;
     setLoading(true);
     try {
       const updatedData = await api.episodes.update(slug, Number(episodeId), {
         title: editableEpisode.title,
         description: editableEpisode.description,
         episodeNumber: Number(editableEpisode.episodeNumber),
+        publishedAt: editableEpisode.publishedAt,
       });
-
       setEpisode(prev => ({...prev, ...updatedData.episode}));
       setEditableEpisode(updatedData.episode);
       setIsEditing(false);
@@ -87,7 +67,7 @@ export default function EpisodeDetailPage() {
   };
 
   const handleCancel = () => {
-    setEditableEpisode(episode!);
+    setEditableEpisode(episode);
     setIsEditing(false);
   };
 
@@ -95,7 +75,7 @@ export default function EpisodeDetailPage() {
     return <div className="flex justify-center py-10"><Loader2 className="animate-spin" /></div>;
   }
 
-  if (!episode) {
+  if (!episode || !editableEpisode) {
     return <div className="text-center text-red-500">Episode not found.</div>;
   }
 
@@ -113,9 +93,12 @@ export default function EpisodeDetailPage() {
             <h2 className="text-2xl font-semibold">{episode.title}</h2>
           )}
           <p className="text-sm text-gray-500">
-            Created on: {new Date(episode.createdAt).toLocaleDateString()}
+            Created: {new Date(episode.createdAt).toLocaleDateString()}
           </p>
         </div>
+        {!isEditing && (
+          <PublishStatusBadge publishedAt={episode.publishedAt} />
+        )}
         {isEditing ? (
           <div className="flex gap-2">
             <Button onClick={handleSave} size="sm" disabled={loading}><Save className="mr-2 h-4 w-4" /> Save</Button>
@@ -150,6 +133,42 @@ export default function EpisodeDetailPage() {
             <p className="text-gray-700">{episode.description || "No description provided."}</p>
           )}
         </div>
+        {isEditing && (
+          <div className="space-y-2 rounded-lg border p-4">
+            <label className="font-semibold">Publish Status</label>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="publish-status"
+                checked={!!editableEpisode.publishedAt}
+                onCheckedChange={(checked) => {
+                  setEditableEpisode({
+                    ...editableEpisode,
+                    publishedAt: checked ? new Date().toISOString() : null,
+                  });
+                }}
+              />
+              <Label htmlFor="publish-status">
+                {editableEpisode.publishedAt ? "Published / Scheduled" : "Draft"}
+              </Label>
+            </div>
+            {editableEpisode.publishedAt && (
+              <div className="pt-2">
+                <Label htmlFor="publish-date">Publish Date</Label>
+                <Input
+                  id="publish-date"
+                  type="datetime-local"
+                  value={formatDateForInput(editableEpisode.publishedAt)}
+                  onChange={(e) =>
+                    setEditableEpisode({
+                      ...editableEpisode,
+                      publishedAt: e.target.value ? new Date(e.target.value).toISOString() : null,
+                    })
+                  }
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="border-t pt-6 space-y-4">
@@ -199,6 +218,58 @@ export default function EpisodeDetailPage() {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Formats an ISO date string into a `YYYY-MM-DDTHH:mm` string
+ * suitable for a datetime-local input.
+ */
+function formatDateForInput(isoString: string | null): string {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  // Adjust for timezone offset to display local time correctly in the input
+  const timezoneOffset = date.getTimezoneOffset() * 60000; // in milliseconds
+  const localDate = new Date(date.getTime() - timezoneOffset);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function PublishStatusBadge({ publishedAt }: { publishedAt: string | null }) {
+  const getStatus = () => {
+    if (!publishedAt) {
+      return {
+        text: "Draft",
+        icon: <Edit2 size={12} />,
+        className: "bg-gray-200 text-gray-700",
+      };
+    }
+    const publishDate = new Date(publishedAt);
+    const now = new Date();
+
+    if (publishDate > now) {
+      return {
+        text: `Scheduled for ${publishDate.toLocaleDateString()}`,
+        icon: <Calendar size={12} />,
+        className: "bg-blue-100 text-blue-800",
+      };
+    }
+
+    return {
+      text: "Published",
+      icon: <CheckCircle size={12} />,
+      className: "bg-green-100 text-green-800",
+    };
+  };
+
+  const { text, icon, className } = getStatus();
+
+  return (
+    <div
+      className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1 rounded-full ${className}`}
+    >
+      {icon}
+      <span>{text}</span>
     </div>
   );
 }

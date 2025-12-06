@@ -6,7 +6,9 @@ import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { ImageIcon, X } from "lucide-react";
+import { ImageIcon, X, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import api from "@/lib/apiClient";
 import { toast } from "sonner";
 
@@ -26,6 +28,7 @@ function NewEpisodeFormComponent() {
   const [description, setDescription] = useState("");
   const [episodeNumber, setEpisodeNumber] = useState("");
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -68,6 +71,9 @@ function NewEpisodeFormComponent() {
     if (thumbnailFile) {
       formData.append("thumbnail", thumbnailFile);
     }
+    if (publishedAt) {
+      formData.append("publishedAt", publishedAt);
+    }
 
     try {
       await api.episodes.create(comicSlug, formData);
@@ -99,6 +105,34 @@ function NewEpisodeFormComponent() {
           <label htmlFor="description" className="block mb-2 font-medium">Description</label>
           <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
+        <div className="space-y-2 rounded-lg border p-4">
+          <label className="font-semibold">Publish Status</label>
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="publish-status"
+              checked={!!publishedAt}
+              onCheckedChange={(checked) => {
+                setPublishedAt(checked ? new Date().toISOString() : null);
+              }}
+            />
+            <Label htmlFor="publish-status">
+              {publishedAt ? "Published / Scheduled" : "Draft"}
+            </Label>
+          </div>
+          {publishedAt && (
+            <div className="pt-2">
+              <Label htmlFor="publish-date">Publish Date</Label>
+              <Input
+                id="publish-date"
+                type="datetime-local"
+                value={formatDateForInput(publishedAt)}
+                onChange={(e) =>
+                  setPublishedAt(e.target.value ? new Date(e.target.value).toISOString() : null)
+                }
+              />
+            </div>
+          )}
+        </div>
         <div className="self-start">
           <label htmlFor="thumbnail-input" className="block mb-2 font-medium">Thumbnail (Optional)</label>
           {thumbnailPreview ? (
@@ -109,11 +143,24 @@ function NewEpisodeFormComponent() {
           <Input id="thumbnail-input" type="file" className="mt-2" onChange={handleFileChange} accept={ALLOWED_FILE_TYPES.join(",")} />
         </div>
         <Button type="submit" disabled={loading} className="w-full">
-          {loading ? "Creating..." : "Create Episode"}
+          {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</> : "Create Episode"}
         </Button>
       </form>
     </div>
   );
+}
+
+/**
+ * Formats an ISO date string into a `YYYY-MM-DDTHH:mm` string
+ * suitable for a datetime-local input.
+ */
+function formatDateForInput(isoString: string | null): string {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  // Adjust for timezone offset to display local time correctly in the input
+  const timezoneOffset = date.getTimezoneOffset() * 60000; // in milliseconds
+  const localDate = new Date(date.getTime() - timezoneOffset);
+  return localDate.toISOString().slice(0, 16);
 }
 
 export default function NewEpisodePage() {

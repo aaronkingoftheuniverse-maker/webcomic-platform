@@ -11,7 +11,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ImageIcon, PlusCircle } from "lucide-react";
+import { ImageIcon, PlusCircle, Calendar, CheckCircle, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/apiClient";
 
@@ -105,6 +105,7 @@ function EpisodeItem({ episode, comicSlug, level }: { episode: EpisodeDTO; comic
       <div style={indentation} className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-gray-100">
         <ItemThumbnail src={getImageUrl(episode.thumbnailUrl)} alt={episode.title} />
         <span className="font-semibold flex-grow">{episode.title}</span>
+        <PublishStatusBadge publishedAt={episode.publishedAt} />
         <div className="flex items-center gap-3 text-xs">
           <Link href={`/dashboard/creator/comics/${comicSlug}/posts/new?episodeId=${episode.id}`} className="text-gray-500 hover:text-blue-600 flex items-center gap-1">
             <PlusCircle size={14} /> Post
@@ -137,6 +138,7 @@ function PostItem({ post, comicSlug, level }: { post: PostDTO; comicSlug: string
     <div style={indentation} className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-gray-100">
       <ItemThumbnail src={getImageUrl(post.thumbnailImage?.filename)} alt={post.title} />
       <span className="flex-grow">{post.title}</span>
+      <PublishStatusBadge publishedAt={post.publishedAt} />
       <div className="flex items-center gap-3 text-xs">
         <Link href={`/dashboard/creator/comics/${comicSlug}/posts/${post.id}`} className="text-blue-600 hover:underline">
           edit
@@ -171,6 +173,53 @@ function ItemThumbnail({ src, alt }: { src: string | null; alt: string }) {
         ) : (
           <p>No thumbnail</p>
         )}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// New component to display the publishing status
+function PublishStatusBadge({ publishedAt }: { publishedAt: string | null }) {
+  const getStatus = () => {
+    if (!publishedAt) {
+      return {
+        text: "Draft",
+        icon: <Edit2 size={12} />,
+        className: "bg-gray-200 text-gray-700",
+      };
+    }
+    const publishDate = new Date(publishedAt);
+    const now = new Date();
+
+    if (publishDate > now) {
+      return {
+        text: `Scheduled: ${publishDate.toLocaleDateString()}`,
+        icon: <Calendar size={12} />,
+        className: "bg-blue-100 text-blue-800",
+      };
+    }
+
+    return {
+      text: "Published",
+      icon: <CheckCircle size={12} />,
+      className: "bg-green-100 text-green-800",
+    };
+  };
+
+  const { text, icon, className } = getStatus();
+
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        <div
+          className={`flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${className}`}
+        >
+          {icon}
+          <span className="hidden sm:inline">{text.split(":")[0]}</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{text}</p>
       </TooltipContent>
     </Tooltip>
   );

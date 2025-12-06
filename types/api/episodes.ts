@@ -10,6 +10,7 @@ export interface EpisodeDTO {
   episodeNumber: number;
   comicId: number;
   parentId: number | null;
+  publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
   posts: PostDTO[]; // Add posts
@@ -25,6 +26,7 @@ export interface CreateEpisodeRequest {
   description?: string | null;
   episodeNumber: number;
   parentId?: number | null;
+  publishedAt?: string | null;
 }
 
 export interface CreateEpisodeResponse {
@@ -36,6 +38,7 @@ export interface UpdateEpisodeRequest {
   title?: string;
   description?: string | null;
   episodeNumber?: number;
+  publishedAt?: string | null;
 }
 
 export interface UpdateEpisodeResponse {
@@ -49,6 +52,7 @@ export const createEpisodeSchema = z.object({
   description: z.string().nullable().optional(),
   episodeNumber: z.number().int().positive(),
   parentId: z.number().int().positive().nullable().optional(),
+  publishedAt: z.string().datetime({ offset: true }).nullable().optional(),
 });
 
 export const updateEpisodeSchema = createEpisodeSchema.partial();

@@ -5,6 +5,7 @@ import { requireCreatorProfile, generateSlug } from "@/lib/creatorHelpers";
 import { saveFile } from "@/lib/fileHelpers";
 import { ROLES } from "@/lib/roles";
 import { CreatorProfileNotFoundError } from "@/lib/errors";
+import { createEpisodeSchema } from "@/types/api/episodes";
 
 const MAX_FILE_SIZE_MB = 2;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -41,15 +42,22 @@ export async function POST(
     }
 
     const formData = await req.formData();
-    const title = formData.get("title") as string;
-    const description = formData.get("description") as string | null;
-    const episodeNumber = parseInt(formData.get("episodeNumber") as string, 10);
-    const parentId = formData.get("parentId") ? parseInt(formData.get("parentId") as string, 10) : null;
     const thumbnailFile = formData.get("thumbnail") as File | null;
 
-    if (!title || isNaN(episodeNumber)) {
-      return NextResponse.json({ error: "Title and Episode Number are required" }, { status: 400 });
+    // Use Zod to validate and coerce form data
+    const validation = createEpisodeSchema.safeParse({
+      title: formData.get("title"),
+      description: formData.get("description"),
+      episodeNumber: formData.get("episodeNumber") ? Number(formData.get("episodeNumber")) : undefined,
+      parentId: formData.get("parentId") ? Number(formData.get("parentId")) : null,
+      publishedAt: formData.get("publishedAt") || null,
+    });
+
+    if (!validation.success) {
+      return NextResponse.json({ error: "Invalid form data", details: validation.error.format() }, { status: 400 });
     }
+
+    const { title, description, episodeNumber, parentId, publishedAt } = validation.data;
 
     let thumbnailUrl: string | null = null;
     if (thumbnailFile) {
@@ -74,6 +82,7 @@ export async function POST(
         thumbnailUrl,
         comicId: comic.id,
         parentId: parentId,
+        publishedAt: publishedAt ? new Date(publishedAt) : null,
       },
     });
 

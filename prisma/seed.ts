@@ -8,6 +8,7 @@
  *  - A CreatorProfile linked to creatorUser
  *  - Comic + Posts + Images tied to creatorProfile
  *  - A Comment from the regular User
+ *  - Subscriptions between users, comics, and creators
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -25,6 +26,10 @@ async function main() {
   await prisma.comment.deleteMany({});
   await prisma.image.deleteMany({});
   await prisma.post.deleteMany({});
+  // First, break the self-referencing foreign key constraint by setting parentId to null
+  // This is necessary because of the `onDelete: NoAction` in the schema.
+  await prisma.episode.updateMany({ data: { parentId: null } });
+  // Now it's safe to delete all episodes.
   await prisma.episode.deleteMany({});
   await prisma.comic.deleteMany({});
   await prisma.creatorProfile.deleteMany({});
@@ -98,6 +103,11 @@ async function main() {
   // ------------------------------------------
   console.log("📚 Seeding comics, episodes, posts, and images...");
 
+  // Define dates for publish statuses
+  const now = new Date();
+  const pastDate = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 1 day ago
+  const futureDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 1 week from now
+
   const comic = await prisma.comic.create({
     data: {
       title: "Star Drift",
@@ -114,6 +124,7 @@ async function main() {
             slug: "book-1-the-anomaly",
             description: "The journey begins as the crew encounters a strange gravitational anomaly.",
             thumbnailUrl: "uploads/episodes/thumbnails/book-1-seed.png",
+            publishedAt: pastDate, // PUBLISHED
             posts: {
               create: {
                 postNumber: 1,
@@ -121,14 +132,15 @@ async function main() {
                 slug: "into-the-drift", // Used for comment target
                 description: "Our hero takes the first step beyond the stars.",
                 images: {
+                  // prettier-ignore
                   create: Array.from({ length: 4 }).map((_, i) => ({ // Using static names for seed
                     filename: `uploads/posts/images/drift-p${i + 1}-seed.png`,
                     order: i + 1,
                     storageProvider: "local",
                   })),
                 },
-              },
-            },
+              }, // End of posts.create
+            }, // End of posts object
           },
           // --- Episode 2 ---
           {
@@ -137,12 +149,14 @@ async function main() {
             slug: "book-2-echoes",
             description: "A mysterious signal leads the crew to an ancient derelict ship.",
             thumbnailUrl: "uploads/episodes/thumbnails/book-2-seed.png",
+            publishedAt: futureDate, // SCHEDULED
             posts: {
               create: {
                 postNumber: 1,
                 title: "Chapter 2: Collision",
                 slug: "collision",
                 description: "An encounter with a rogue asteroid tests the crew.",
+                publishedAt: futureDate, // SCHEDULED
                 images: {
                   create: Array.from({ length: 4 }).map((_, i) => ({ // Using static names for seed
                     filename: `uploads/posts/images/collision-p${i + 1}-seed.png`,
@@ -150,6 +164,24 @@ async function main() {
                     storageProvider: "local",
                   })),
                 },
+              },
+            },
+          },
+          // --- Episode 3 (Draft) ---
+          {
+            episodeNumber: 4,
+            title: "Book 3: The Void (Draft)",
+            slug: "book-3-the-void-draft",
+            description: "A new adventure is being written.",
+            thumbnailUrl: "uploads/episodes/thumbnails/book-3-seed.png",
+            // `publishedAt` is omitted, making this a DRAFT
+            posts: {
+              create: {
+                postNumber: 1,
+                title: "Chapter 3: First Contact (Draft)",
+                slug: "first-contact-draft",
+                description: "The crew makes a startling discovery.",
+                // `publishedAt` is omitted, making this a DRAFT
               },
             },
           },
@@ -178,6 +210,7 @@ async function main() {
         thumbnailUrl: "uploads/episodes/thumbnails/book-1-5-seed.png",
         comicId: comic.id, // Explicitly set the comicId
         parentId: parentEpisode.id, // Explicitly set the parentId
+        // `publishedAt` is omitted, making this a DRAFT
       },
     });
     console.log("✅ Nested episode created.");
@@ -221,6 +254,36 @@ async function main() {
   });
 
   console.log("✅ Comment seeded");
+
+  // ------------------------------------------
+  // SUBSCRIPTIONS
+  // ------------------------------------------
+  console.log("💌 Seeding subscriptions...");
+
+  // RegularUser subscribes to the Star Drift comic
+  await prisma.user.update({
+    where: { id: regularUser.id },
+    data: {
+      subscribedComics: {
+        connect: { id: comic.id },
+      },
+    },
+  });
+
+  // RegularUser and Admin subscribe to the CreatorUser's profile
+  await prisma.creatorProfile.update({
+    where: { id: creatorProfile.id },
+    data: {
+      subscribers: {
+        connect: [{ id: regularUser.id }, { id: admin.id }],
+      },
+    },
+  });
+
+  console.log(
+    "✅ Subscriptions seeded: RegularUser and Admin now subscribe to the creator, and RegularUser subscribes to the comic."
+  );
+
   console.log("🌱 Seeding complete!");
 }
 

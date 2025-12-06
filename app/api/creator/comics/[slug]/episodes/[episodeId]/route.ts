@@ -4,6 +4,7 @@ import { apiAuth } from "@/lib/auth";
 import { requireCreatorProfile } from "@/lib/creatorHelpers";
 import { ROLES } from "@/lib/roles";
 import { CreatorProfileNotFoundError } from "@/lib/errors";
+import { updateEpisodeSchema } from "@/types/api/episodes";
 
 // This forces the route to be rendered dynamically on every request.
 export const dynamic = "force-dynamic";
@@ -89,28 +90,23 @@ export async function PATCH(
     // Verify ownership before proceeding
     await verifyEpisodeOwnership(params.slug, episodeId, userId);
 
-    const body = await req.json();
-    const { title, description, episodeNumber } = body;
+    const json = await req.json();
+    const validation = updateEpisodeSchema.safeParse(json);
 
-    // Basic validation
-    if (!title || typeof episodeNumber !== 'number') {
-      return NextResponse.json({ error: "Title and a valid Episode Number are required." }, { status: 400 });
+    if (!validation.success) {
+      return NextResponse.json({ error: "Invalid request body", details: validation.error.format() }, { status: 400 });
     }
+
+    const { publishedAt, ...dataToUpdate } = validation.data;
 
     const updatedEpisode = await prisma.episode.update({
       where: { id: episodeId },
       data: {
-        title,
-        description,
-        episodeNumber,
+        ...dataToUpdate,
+        // Handle publishedAt separately to convert string to Date or set to null
+        // If `publishedAt` is not in the payload, it will be undefined and this field will not be updated.
+        publishedAt: typeof publishedAt === 'undefined' ? undefined : (publishedAt ? new Date(publishedAt) : null),
       },
-      select: { // Only return the fields that can be edited
-        id: true,
-        title: true,
-        description: true,
-        episodeNumber: true,
-        createdAt: true,
-      }
     });
 
     return NextResponse.json({ success: true, episode: updatedEpisode });

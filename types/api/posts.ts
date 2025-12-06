@@ -13,6 +13,7 @@ export interface PostDTO {
   description: string | null;
   postNumber: number;
   episodeId: number;
+  publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
   images?: PostImageDTO[];
@@ -31,6 +32,7 @@ export interface CreatePostRequest {
   title: string;
   description?: string | null;
   episodeId: number;
+  publishedAt?: string | null;
 }
 
 export interface CreatePostResponse {
@@ -41,6 +43,7 @@ export interface CreatePostResponse {
 export interface UpdatePostRequest {
   title?: string;
   description?: string | null;
+  publishedAt?: string | null;
 }
 
 export interface UpdatePostResponse {
@@ -53,6 +56,7 @@ export const createPostSchema = z.object({
   title: z.string().min(1),
   description: z.string().nullable().optional(),
   episodeId: z.number().int().positive(),
+  publishedAt: z.string().datetime({ offset: true }).nullable().optional(),
 });
 
 export const updatePostSchema = createPostSchema.partial();

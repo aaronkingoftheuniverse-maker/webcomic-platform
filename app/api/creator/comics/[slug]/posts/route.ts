@@ -5,6 +5,7 @@ import { apiAuth } from "@/lib/auth";
 import { requireCreatorProfile } from "@/lib/creatorHelpers";
 import { ROLES } from "@/lib/roles";
 import { CreatorProfileNotFoundError } from "@/lib/errors";
+import { createPostSchema } from "@/types/api/posts";
 
 //
 // GET — list posts for a comic
@@ -16,31 +17,9 @@ export async function GET(
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
-    const { slug } = await params;
-    const creatorProfile = await requireCreatorProfile(session.user.id);
-
-    const comic = await prisma.comic.findFirst({
-      where: {
-        slug,
-        creatorProfileId: creatorProfile.id,
-      },
-      include: {
-        posts: {
-          include: {
-            images: {
-              orderBy: { id: "asc" },
-            },
-          },
-          orderBy: { postNumber: "asc" },
-        },
-      },
-    });
-
-    if (!comic) {
-      return NextResponse.json({ error: "Comic not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ posts: comic.posts });
+    // This route is deprecated because posts are no longer direct children of comics.
+    console.warn(`[GET /api/creator/comics/[slug]/posts] This route is deprecated. Fetch posts via their episode.`);
+    return NextResponse.json({ error: "This route is deprecated. Fetch posts via their episode." }, { status: 410 }); // 410 Gone
   } catch (err) {
     return handleError(err);
   }
@@ -55,34 +34,47 @@ export async function POST(
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
-    const { slug } = await params;
-    const creatorProfile = await requireCreatorProfile(session.user.id);
+    const userId = parseInt(session.user.id, 10);
+    if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
+    const creatorProfile = await requireCreatorProfile(userId);
 
-    const comic = await prisma.comic.findFirst({
-      where: { slug, creatorProfileId: creatorProfile.id },
-      include: { posts: true },
-    });
+    const body = await req.json();
+    const validation = createPostSchema.safeParse(body);
 
-    if (!comic) {
-      return NextResponse.json({ error: "Comic not found" }, { status: 404 });
+    if (!validation.success) {
+      return NextResponse.json({ error: "Invalid request body", details: validation.error.format() }, { status: 400 });
     }
 
-    const data = await req.json();
+    const { episodeId, publishedAt, ...postData } = validation.data;
+
+    // Verify the creator owns the episode this post is being added to
+    const episode = await prisma.episode.findFirst({
+      where: {
+        id: episodeId,
+        comic: { creatorProfileId: creatorProfile.id },
+      },
+      include: { posts: { select: { postNumber: true } } },
+    });
+
+    if (!episode) {
+      return NextResponse.json({ error: "Episode not found or you do not have permission to add a post to it." }, { status: 404 });
+    }
 
     const nextPostNumber =
-      comic.posts.length > 0
-        ? Math.max(...comic.posts.map((p) => p.postNumber)) + 1
+      episode.posts.length > 0
+        ? Math.max(...episode.posts.map((p) => p.postNumber)) + 1
         : 1;
 
     const post = await prisma.post.create({
       data: {
-        ...data,
+        ...postData,
         postNumber: nextPostNumber,
-        comicId: comic.id,
+        episodeId: episodeId,
+        publishedAt: publishedAt ? new Date(publishedAt) : null,
       },
     });
 
-    return NextResponse.json({ post }, { status: 201 });
+    return NextResponse.json({ ok: true, post }, { status: 201 });
   } catch (err) {
     return handleError(err);
   }

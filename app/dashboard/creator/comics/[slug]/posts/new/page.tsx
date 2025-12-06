@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, ChangeEvent, Suspense } from "react";
-import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams, notFound } from "next/navigation";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { ImageIcon, X, CheckCircle } from "lucide-react";
+import { ImageIcon, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const MAX_FILE_SIZE_MB = 2;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -25,10 +27,11 @@ function NewPostFormComponent() {
   const [description, setDescription] = useState("");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [thumbnailIndex, setThumbnailIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
-  if (!episodeId) {
+  if (!episodeId || isNaN(Number(episodeId))) {
     return <div className="text-red-500">Error: Episode ID is missing from the URL.</div>;
   }
 
@@ -87,6 +90,10 @@ function NewPostFormComponent() {
       formData.append("thumbnailIndex", String(thumbnailIndex));
     }
 
+    if (publishedAt) {
+      formData.append("publishedAt", publishedAt);
+    }
+
     try {
       const res = await fetch(`/api/creator/posts`, {
         method: "POST",
@@ -109,7 +116,7 @@ function NewPostFormComponent() {
   };
 
   return (
-    <div className="p-6 bg-white rounded-xl shadow-md max-w-4xl mx-auto">
+    <div className="p-6 bg-white rounded-xl shadow-md max-w-2xl mx-auto">
       <h2 className="text-xl font-semibold mb-6">Create New Post</h2>
       <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="flex flex-col space-y-6">
         {/* Title and Description fields... */}
@@ -122,6 +129,35 @@ function NewPostFormComponent() {
           <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
 
+        {/* Publish Status */}
+        <div className="space-y-2 rounded-lg border p-4">
+          <label className="font-semibold">Publish Status</label>
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="publish-status"
+              checked={!!publishedAt}
+              onCheckedChange={(checked) => {
+                setPublishedAt(checked ? new Date().toISOString() : null);
+              }}
+            />
+            <Label htmlFor="publish-status">
+              {publishedAt ? "Published / Scheduled" : "Draft"}
+            </Label>
+          </div>
+          {publishedAt && (
+            <div className="pt-2">
+              <Label htmlFor="publish-date">Publish Date</Label>
+              <Input
+                id="publish-date"
+                type="datetime-local"
+                value={formatDateForInput(publishedAt)}
+                onChange={(e) =>
+                  setPublishedAt(e.target.value ? new Date(e.target.value).toISOString() : null)
+                }
+              />
+            </div>
+          )}
+        </div>
         {/* Image Uploader */}
         <div>
           <label className="block mb-2 font-medium">Post Images</label>
@@ -147,11 +183,24 @@ function NewPostFormComponent() {
         </div>
 
         <Button type="submit" disabled={loading} className="w-full">
-          {loading ? "Creating..." : "Create Post"}
+          {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</> : "Create Post"}
         </Button>
       </form>
     </div>
   );
+}
+
+/**
+ * Formats an ISO date string into a `YYYY-MM-DDTHH:mm` string
+ * suitable for a datetime-local input.
+ */
+function formatDateForInput(isoString: string | null): string {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  // Adjust for timezone offset to display local time correctly in the input
+  const timezoneOffset = date.getTimezoneOffset() * 60000; // in milliseconds
+  const localDate = new Date(date.getTime() - timezoneOffset);
+  return localDate.toISOString().slice(0, 16);
 }
 
 export default function NewPostPage() {

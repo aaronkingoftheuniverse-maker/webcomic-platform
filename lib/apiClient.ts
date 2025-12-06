@@ -26,6 +26,11 @@ import {
   UpdatePostResponse,
 } from "@/types/api/posts";
 
+import {
+  CreatorProfile,
+  UpdateCreatorProfilePayload,
+} from "@/types/api/creator";
+
 import { UploadResponse } from "@/types/api/uploads";
 
 /* -------------------------------------------------------------------------- */
@@ -145,14 +150,7 @@ export const api = {
     ): Promise<FetchPostResponse> =>
       fetchJson(`/api/creator/comics/${comicSlug}/posts/${postId}`),
 
-create: async (comicSlug: string, payload: FormData) =>
-  fetchJson<CreatePostResponse>(`/api/creator/comics/${comicSlug}/posts`, {
-    method: "POST",
-    body: payload,
-  }),
-
-    // Modern structured JSON version
-    createLegacy: (
+    create: (
       comicSlug: string,
       payload: CreatePostRequest
     ): Promise<CreatePostResponse> =>
@@ -193,6 +191,21 @@ create: async (comicSlug: string, payload: FormData) =>
         body: form,
       });
     },
+  },
+
+  /* -------------------------------- CREATOR -------------------------------- */
+  creator: {
+    getProfile: (): Promise<CreatorProfile> =>
+      fetchJson("/api/creator/profile"),
+
+    saveProfile: (
+      payload: UpdateCreatorProfilePayload
+    ): Promise<CreatorProfile> =>
+      fetchJson("/api/creator/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
   },
 };
 

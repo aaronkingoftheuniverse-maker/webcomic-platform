@@ -11,13 +11,12 @@ export const adminMenu = [
 ];
 
 export const creatorMenu = [
-  { href: "/dashboard/creator", label: "Creator Home" },
   { href: "/dashboard/creator/comics", label: "My Comics" },
-  { href: "/dashboard/creator/posts", label: "Posts" },
+  { href: "/dashboard/creator/profile", label: "My Profile" },
 ];
 
 export const createProfileMenu = [
-  { href: "/dashboard/creator/create-profile", label: "Create Creator Profile" },
+  { href: "/dashboard/creator/profile", label: "Create Creator Profile" },
 ];
 
 export function resolveMenu(role: string, hasCreatorProfile: boolean) {
