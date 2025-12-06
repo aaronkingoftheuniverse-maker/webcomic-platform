@@ -3,25 +3,20 @@
 import Link from "next/link";
 import AuthStatus from "@/components/AuthStatus";
 
-// UI assets go in /public/assets/ui/logo.svg for example.
-// <img src="/assets/ui/logo.svg" /> OR use next/image later.
-
 export default function Header() {
   return (
-    <header className="site-header">
-      <div className="wrapper site-header__wrapper">
-        {/* Left: Logo + site name */}
-        <a href="#" className="branding">
-          {/* Placeholder logo */}
-          <div className="w-6 h-6 rounded-full bg-white opacity-90" />
-          <span className="font-semibold tracking-wide">My Comic Platform</span>
-        </a>
+    <header className="sticky top-0 z-50 w-full flex items-center justify-between bg-black px-4 py-3 text-white shadow-sm">
+      {/* Left: Branding */}
+      <Link href="/" className="flex items-center gap-2">
+        {/* Placeholder logo */}
+        <div className="h-6 w-6 rounded-full bg-white opacity-90" />
+        <span className="font-semibold tracking-wide">My Comic Platform</span>
+      </Link>
 
-        {/* Right: Auth */}
-        <nav className="site-nav">
-          <AuthStatus />
-        </nav>
-      </div>
+      {/* Right: Auth Status */}
+      <nav>
+        <AuthStatus />
+      </nav>
     </header>
   );
 }
