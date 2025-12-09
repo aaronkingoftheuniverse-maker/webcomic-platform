@@ -1,7 +1,7 @@
 // /lib/dtoMappers.ts
-import type { ComicDTO } from "@/types/api/comics";
 import type { PostDTO, PostListItemDTO } from "@/types/api/posts";
-import type { ImageDTO } from "@/types/api/images";
+import { ImageDTO } from "@/types/api/posts"; // Corrected import path
+import { ComicCardData } from "@/components/comics/ComicCard";
 
 /* Image */
 export function mapImageToDTO(img: any): ImageDTO {
@@ -22,10 +22,11 @@ export function mapPostToDTO(post: any): PostDTO {
     postNumber: post.postNumber,
     title: post.title,
     slug: post.slug,
-    date: post.date ? new Date(post.date).toISOString() : new Date().toISOString(),
     description: post.description ?? null,
-    comicId: post.comicId,
+    episodeId: post.episodeId,
+    publishedAt: post.publishedAt ? new Date(post.publishedAt).toISOString() : null,
     images: Array.isArray(post.images) ? post.images.map(mapImageToDTO) : [],
+    thumbnailImage: post.thumbnailImage ? mapImageToDTO(post.thumbnailImage) : null,
     createdAt: post.createdAt instanceof Date ? post.createdAt.toISOString() : String(post.createdAt),
     updatedAt: post.updatedAt instanceof Date ? post.updatedAt.toISOString() : String(post.updatedAt),
   };
@@ -42,7 +43,7 @@ export function mapPostToListItem(post: any): PostListItemDTO {
 }
 
 /* Comic */
-export function mapComicToDTO(c: any): ComicDTO {
+export function mapComicToDTO(c: any): ComicCardData {
   // Calculate total posts from nested episodes if the data is available
   const postCount = Array.isArray(c.episodes)
     ? c.episodes.reduce((sum: number, episode: any) => sum + (episode._count?.posts ?? 0), 0)
@@ -56,10 +57,8 @@ export function mapComicToDTO(c: any): ComicDTO {
     slug: c.slug,
     description: c.description ?? null,
     coverImage: c.coverImage ?? null,
-    creatorProfileId: c.creatorProfileId,
-    createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : String(c.createdAt),
-    updatedAt: c.updatedAt instanceof Date ? c.updatedAt.toISOString() : String(c.updatedAt),
     episodeCount: episodeCount,
     postCount: postCount,
+    lastPostedAt: c.lastPostedAt, // Directly map the pre-calculated date
   };
 }

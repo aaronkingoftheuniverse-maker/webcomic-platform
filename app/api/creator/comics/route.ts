@@ -32,29 +32,45 @@ export async function GET(
     if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
     const creatorProfile = await requireCreatorProfile(userId);
 
-    // 📚 Step 3 — fetch comics
-    const comics = await prisma.comic.findMany({
-      where: { creatorProfileId: creatorProfile.id },
-      orderBy: { createdAt: "desc" },
-      include: {
-        // Explicitly select coverImage to ensure it's part of the payload.
-        // While scalar fields are included by default, this makes the intent clear.
-        // We don't need to change the rest of the include for this page,
-        // as it correctly calculates episode and post counts.
+    // 📚 Step 3 — fetch comics with advanced data
+    const comicsWithDetails = await prisma.comic.findMany({
+      where: {
+        creatorProfileId: creatorProfile.id,
+      },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        description: true,
+        coverImage: true,
         _count: {
           select: { episodes: true },
         },
         episodes: {
           select: {
-            _count: {
-              select: { posts: true },
-            },
+            _count: { select: { posts: true } },
           },
         },
       },
+      orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ comics: comics.map(mapComicToDTO) });
+    // Find the latest post date for each comic
+    const comicsWithLastPostDate = await Promise.all(
+      comicsWithDetails.map(async (comic) => {
+        const lastPost = await prisma.post.findFirst({
+          where: { episode: { comicId: comic.id } },
+          orderBy: { publishedAt: "desc" },
+          select: { publishedAt: true },
+        });
+        return {
+          ...comic,
+          lastPostedAt: lastPost?.publishedAt?.toISOString() ?? null,
+        };
+      })
+    );
+
+    return NextResponse.json({ comics: comicsWithLastPostDate.map(mapComicToDTO) });
   } catch (err) {
     if (err instanceof NextResponse) {
       // If apiAuth throws a response, forward it.
@@ -127,10 +143,18 @@ export async function POST(req: NextRequest) {
         coverImage: coverImagePath, // Save the generated path
         creatorProfileId: creatorProfile.id,
       },
+      // Re-include the data needed for the DTO after creation
+      include: {
+        _count: { select: { episodes: true } },
+        episodes: { select: { _count: { select: { posts: true } } } },
+      },
     });
 
+    // The new comic won't have a lastPostedAt date, so we can pass a version without it to the DTO
+    const comicForDto = { ...comic, lastPostedAt: null };
+
     return NextResponse.json(
-      { ok: true, comic: mapComicToDTO(comic) }, // Assuming mapComicToDTO exists and works
+      { ok: true, comic: mapComicToDTO(comicForDto) },
       { status: 201 }
     );
 
@@ -143,7 +167,7 @@ export async function POST(req: NextRequest) {
       return err;
     }
 
-    console.error("[POST /creator/comics] Unhandled Server Error:", err);
+    console.error("[POST /creator/comics] Unhandled ServerError:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

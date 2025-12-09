@@ -1,9 +1,16 @@
 import { z } from "zod";
 
-export interface PostImageDTO { // Export this interface
+/**
+ * Represents the public-safe data for an image.
+ * This is a more generic and reusable type than the original PostImageDTO.
+ */
+export interface ImageDTO {
   id: number;
   filename: string;
+  storagePath: string | null;
+  storageProvider: string | null;
   order: number;
+  createdAt: string;
 }
 
 export interface PostDTO {
@@ -16,8 +23,8 @@ export interface PostDTO {
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  images?: PostImageDTO[];
-  thumbnailImage?: PostImageDTO | null;
+  images?: ImageDTO[];
+  thumbnailImage?: ImageDTO | null;
 }
 
 export interface FetchPostsResponse {
@@ -26,6 +33,17 @@ export interface FetchPostsResponse {
 
 export interface FetchPostResponse {
   post: PostDTO;
+}
+
+/**
+ * Represents a simplified Post object for list views.
+ */
+export interface PostListItemDTO {
+  id: number;
+  postNumber: number;
+  title: string;
+  slug: string;
+  createdAt: string;
 }
 
 export interface CreatePostRequest {

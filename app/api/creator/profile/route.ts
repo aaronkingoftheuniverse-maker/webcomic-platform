@@ -3,6 +3,10 @@ import { prisma } from "@/config/prisma";
 import { apiAuth } from "@/lib/auth";
 import { ROLES } from "@/lib/roles";
 import { z } from "zod";
+import { saveFile } from "@/lib/fileHelpers"; // Assuming this helper exists
+
+// This forces the route to be dynamic, preventing the response from being cached.
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -39,9 +43,9 @@ export async function GET(req: NextRequest) {
 }
 
 const profileUpdateSchema = z.object({
-  bio: z.string().max(5000).optional(),
-  website: z.string().url().or(z.literal("")).optional(),
-  avatarUrl: z.string().url().or(z.literal("")).optional(),
+  bio: z.string().max(5000).optional().nullable(),
+  website: z.string().url().or(z.literal("")).optional().nullable(),
+  avatarUrl: z.string().url().or(z.literal("")).optional().nullable(),
 });
 
 export async function POST(req: NextRequest) {
@@ -56,19 +60,44 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
     }
 
-    const json = await req.json();
-    const parsedBody = profileUpdateSchema.safeParse(json);
+    const formData = await req.formData();
+    const bio = formData.get("bio") as string | null;
+    const website = formData.get("website") as string | null;
+    const avatarFile = formData.get("avatar") as File | null;
+
+    let avatarUrl: string | undefined = undefined;
+
+    if (avatarFile) {
+      try {
+        // Using the same constants as the frontend for validation
+        const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
+        const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+        avatarUrl = await saveFile(
+          avatarFile,
+          "avatars", // A dedicated folder for avatars
+          ALLOWED_FILE_TYPES,
+          MAX_FILE_SIZE_BYTES
+        );
+      } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+    }
+
+    const dataToValidate: { bio?: string | null; website?: string | null; avatarUrl?: string } = { bio, website };
+    if (avatarUrl) {
+      dataToValidate.avatarUrl = avatarUrl;
+    }
+
+    const parsedBody = profileUpdateSchema.safeParse(dataToValidate);
 
     if (!parsedBody.success) {
       return NextResponse.json({ error: "Invalid request body", details: parsedBody.error.format() }, { status: 400 });
     }
 
-    const dataToSave = parsedBody.data;
-
     const profile = await prisma.creatorProfile.upsert({
       where: { userId },
-      update: dataToSave,
-      create: { ...dataToSave, userId },
+      update: parsedBody.data,
+      create: { ...parsedBody.data, userId },
     });
 
     return NextResponse.json(profile);

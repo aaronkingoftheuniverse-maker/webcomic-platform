@@ -14,7 +14,7 @@ export default function CreateProfilePrompt({ username }: { username: string }) 
       </p>
 
       <button
-        onClick={() => router.push("/creator-profile/new")}
+        onClick={() => router.push("/profile/new")}
         className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
       >
         Create Creator Profile

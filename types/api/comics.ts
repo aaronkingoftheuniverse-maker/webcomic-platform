@@ -1,21 +1,24 @@
 // /types/api/comics.ts
 import { z } from "zod";
+import { ComicCardData } from "@/components/comics/ComicCard";
+import { EpisodeDTO } from "./episodes";
+import { PostDTO } from "./posts";
 
-export interface ComicDTO {
+export interface FetchComicsResponse {
+  comics: ComicCardData[];
+}
+
+/**
+ * Represents the detailed structure of a single comic, including its nested content.
+ * Used for the comic detail page in the creator dashboard.
+ */
+export interface ComicDetailDTO {
   id: number;
   title: string;
   slug: string;
   description: string | null;
   coverImage: string | null;
-  creatorProfileId: number;
-  createdAt: string;
-  updatedAt: string;
-  episodeCount: number;
-  postCount: number;
-}
-
-export interface FetchComicsResponse {
-  comics: ComicDTO[];
+  episodes: EpisodeDTO[];
 }
 
 export interface CreateComicRequest {
@@ -25,7 +28,7 @@ export interface CreateComicRequest {
 
 export interface CreateComicResponse {
   ok: true;
-  comic: ComicDTO;
+  comic: ComicCardData;
 }
 
 export interface UpdateComicRequest {
@@ -34,10 +37,15 @@ export interface UpdateComicRequest {
 }
 export interface UpdateComicResponse {
   ok: true;
-  comic: ComicDTO;
+  comic: ComicCardData;
 }
 export interface DeleteComicResponse {
   ok: true;
+}
+
+export interface FetchComicDetailResponse {
+  // This should contain the comic data
+  comic: ComicDetailDTO;
 }
 
 /* Zod validation */

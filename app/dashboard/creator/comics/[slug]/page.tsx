@@ -60,6 +60,11 @@ export default function ComicDetailPage() {
     }
   }
 
+  // Add a guard clause to ensure the slug is available before rendering.
+  if (!slug) {
+    return <div className="p-6 bg-white rounded-xl shadow-md max-w-xl">Loading comic details...</div>;
+  }
+
   if (loading) {
     return <div className="p-6 bg-white rounded-xl shadow-md max-w-xl">Loading comic...</div>;
   }

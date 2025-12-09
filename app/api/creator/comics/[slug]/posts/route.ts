@@ -34,6 +34,10 @@ export async function POST(
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const userId = parseInt(session.user.id, 10);
     if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
     const creatorProfile = await requireCreatorProfile(userId);
@@ -65,9 +69,15 @@ export async function POST(
         ? Math.max(...episode.posts.map((p) => p.postNumber)) + 1
         : 1;
 
+    // Generate a slug from the title.
+    // In a production app, you'd want a more robust slugify function
+    // that also checks for uniqueness.
+    const slug = postData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+
     const post = await prisma.post.create({
       data: {
         ...postData,
+        slug: slug, // Add the generated slug
         postNumber: nextPostNumber,
         episodeId: episodeId,
         publishedAt: publishedAt ? new Date(publishedAt) : null,

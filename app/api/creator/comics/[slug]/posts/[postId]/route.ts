@@ -7,6 +7,9 @@ import { ROLES } from "@/lib/roles";
 import { CreatorProfileNotFoundError } from "@/lib/errors";
 import { updatePostSchema } from "@/types/api/posts";
 
+// This forces the route to be dynamic, preventing the response from being cached.
+export const dynamic = "force-dynamic";
+
 // GET — fetch a single post
 export async function GET(
   req: NextRequest,

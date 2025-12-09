@@ -10,7 +10,7 @@ export default async function SidebarServer() {
   const menu = resolveMenu(role, hasCreatorProfile);
 
   return (
-    <aside className="w-64 bg-gray-800 text-white p-4 flex flex-col min-h-screen">
+    <aside className="w-64 p-4 flex flex-col min-h-screen border-r border-solid border-pink-400">
       <h2 className="text-xl font-bold mb-6">Dashboard</h2>
 
       <div className="flex flex-col gap-2">

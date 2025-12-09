@@ -4,6 +4,11 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect, NextResponse } from "next/navigation";
 import { ROLES, type Role } from "./roles";
 
+/** A simple helper to get the session without any side effects */
+export function auth() {
+  return getServerSession(authOptions);
+}
+
 /** Get the current user session (server-side) */
 export async function requireAuth() {
   const session = await getServerSession(authOptions);
@@ -39,10 +44,11 @@ export async function requireCreator(hasProfile: boolean = true) {
 
 /** Protect API routes: throws instead of returning NextResponse */
 export async function apiAuth(allowedRoles: Role[] = [ROLES.USER]) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
 
   if (!session?.user || !allowedRoles.includes(session.user.role)) {
-    throw NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Return null instead of throwing, allowing the API route to handle the response.
+    return null;
   }
 
   return session;
