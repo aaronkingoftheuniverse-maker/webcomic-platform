@@ -15,8 +15,26 @@ export default async function ComicLayout({
 }: ComicLayoutProps) {
   // Await the params promise to get the actual values
   const params = await paramsProp;
+
   const comic = await getComicLayoutData(params.slug);
-  const activePostSlug = params.postSlug; // The layout should ONLY get the slug from the URL.
+
+  let activePostSlug = params.postSlug; // The slug from the URL, if it exists.
+
+  // If we are on the comic's root page, there's no postSlug in the URL.
+  // We need to find the latest post to determine the active slug for the nav tree.
+  if (!activePostSlug) {
+    const latestPost = await prisma.post.findFirst({
+      where: {
+        episode: { comic: { slug: params.slug } },
+        publishedAt: { lte: new Date() },
+      },
+      orderBy: { publishedAt: "desc" },
+      select: { slug: true },
+    });
+    if (latestPost) {
+      activePostSlug = latestPost.slug;
+    }
+  }
 
   return (
     <div className="container mx-auto">

@@ -19,7 +19,7 @@ interface ComicNavTreeProps {
   comicSlug: string;
   comicTitle: string;
   episodes: NavEpisode[];
-  activePostSlug?: string; // Make this optional
+  activePostSlug?: string;
 }
 
 function getImageUrl(relativePath: string | null | undefined): string | null {
@@ -36,13 +36,17 @@ function getImageUrl(relativePath: string | null | undefined): string | null {
 }
 
 export function ComicNavTree({ comicSlug, comicTitle, episodes, activePostSlug }: ComicNavTreeProps) {
+  const params = useParams();
+  // Prioritize the slug from the client-side URL parameters.
+  // Fall back to the server-provided prop for the initial load of the main comic page.
+  const currentActiveSlug = params.postSlug as string || activePostSlug;
   return (
     <aside className="p-4 bg-gray-100/80 rounded-lg border border-gray-200/80">
       <h3 className="font-bold mb-2 text-lg">{comicTitle}</h3>
       <TooltipProvider>
         <div className="space-y-1">
           {episodes.map((episode) => (
-            <EpisodeNavItem key={episode.id} episode={episode} comicSlug={comicSlug} level={0} activePostSlug={activePostSlug} />
+            <EpisodeNavItem key={episode.id} episode={episode} comicSlug={comicSlug} level={0} activePostSlug={currentActiveSlug} />
           ))}
         </div>
       </TooltipProvider>
@@ -72,7 +76,7 @@ function EpisodeNavItem({ episode, comicSlug, level, activePostSlug }: { episode
 }
 
 function PostNavItem({ post, comicSlug, level, activePostSlug }: { post: NavPost; comicSlug:string; level: number; activePostSlug?: string }) {
-  const isActive = activePostSlug === post.slug;
+  const isActive = activePostSlug === post.slug; // This comparison logic is now correct
   const indentation = { paddingLeft: `${level * 1}rem` };
 
   return (
