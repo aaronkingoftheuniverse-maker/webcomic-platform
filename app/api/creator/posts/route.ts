@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/config/prisma";
 import { apiAuth } from "@/lib/auth";
 import { requireCreatorProfile, generateSlug } from "@/lib/creatorHelpers";
-import { saveFile } from "@/lib/fileHelpers";
+import { handleFileUpload } from "@/lib/uploads";
 import { ROLES } from "@/lib/roles";
 import { CreatorProfileNotFoundError } from "@/lib/errors";
 
@@ -45,12 +45,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Episode not found or unauthorized" }, { status: 404 });
     }
 
-    // Process and save uploaded images
-    const savedImagePaths = await Promise.all(
-      images.map(imageFile =>
-        saveFile(imageFile, "posts/images", ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES)
-      )
-    );
+    // Process and save uploaded images using the safe handler
+    const savedImagePaths: string[] = [];
+    for (const imageFile of images) {
+      // Use a more specific subfolder like posts/[postId] if you can, but this works for now.
+      const uploadResult = await handleFileUpload(imageFile, "posts/images");
+      if (uploadResult.success) {
+        savedImagePaths.push(uploadResult.filePath);
+      } else {
+        // If one file fails, stop and return an error.
+        return NextResponse.json({ error: `Upload failed for ${imageFile.name}: ${uploadResult.error}` }, { status: 400 });
+      }
+    }
 
     const nextPostNumber =
       episode.posts.length > 0

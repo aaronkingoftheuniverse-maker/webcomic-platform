@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/config/prisma";
+import { getBreadcrumbsForPost } from "@/lib/data/breadcrumbs";
 
 /**
  * GET /api/posts/[postSlug]
@@ -7,9 +8,10 @@ import { prisma } from "@/config/prisma";
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { postSlug: string } }
+  { params: paramsProp }: { params: Promise<{ postSlug: string }> }
 ) {
   try {
+    const params = await paramsProp;
     const { postSlug } = params;
 
     const post = await prisma.post.findUnique({
@@ -39,7 +41,9 @@ export async function GET(
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ post });
+    const breadcrumbs = await getBreadcrumbsForPost(post.id);
+
+    return NextResponse.json({ post, breadcrumbs });
   } catch (err) {
     console.error(`[GET /api/posts/${params.postSlug}] Server Error:`, err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

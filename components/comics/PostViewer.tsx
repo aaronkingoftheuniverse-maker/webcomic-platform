@@ -13,12 +13,20 @@ interface PostViewerProps {
   // Pass the full hrefs for simpler logic
   nextPostHref: string | null;
   prevPostHref: string | null;
+  activePostSlug?: string; // Optional prop to receive the active slug
 }
 
-function getImageUrl(relativePath: string | null): string | null {
+function getImageUrl(relativePath: string | null | undefined): string | null {
   if (!relativePath) return null;
-  // Assuming storagePath is the full URL or you have a base URL
-  return relativePath.startsWith('http') ? relativePath : `${process.env.NEXT_PUBLIC_STORAGE_BASE_URL}${relativePath}`;
+  const baseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL;
+  if (!baseUrl) {
+    return relativePath;
+  }
+  if (baseUrl.startsWith("http")) {
+    return new URL(relativePath, baseUrl).href;
+  }
+  // Otherwise, handle as a relative path, preventing double slashes.
+  return `${baseUrl.replace(/\/$/, "")}/${relativePath.replace(/^\//, "")}`;
 }
 
 export function PostViewer({ title, images, nextPostHref, prevPostHref }: PostViewerProps) {

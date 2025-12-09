@@ -5,6 +5,8 @@ import { requireCreatorProfile } from "@/lib/creatorHelpers";
 import { ROLES } from "@/lib/roles";
 import { CreatorProfileNotFoundError } from "@/lib/errors";
 import { updateEpisodeSchema } from "@/types/api/episodes";
+import { handleFileUpload, deleteFile } from "@/lib/uploads"; // Assuming these exist
+import { getBreadcrumbsForEpisode } from "@/lib/data/breadcrumbs";
 
 // This forces the route to be rendered dynamically on every request.
 export const dynamic = "force-dynamic";
@@ -33,7 +35,12 @@ export async function GET(
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const params = await paramsPromise; // Unpack the promise here
+
     const userId = parseInt(session.user.id, 10);
     if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
 
@@ -64,7 +71,13 @@ export async function GET(
       },
     });
 
-    return NextResponse.json({ episode });
+    if (!episode) {
+      return NextResponse.json({ error: "Episode not found" }, { status: 404 });
+    }
+
+    const breadcrumbs = await getBreadcrumbsForEpisode(episode.id, '/dashboard/creator');
+
+    return NextResponse.json({ episode, breadcrumbs });
   } catch (err: any) {
     if (err instanceof CreatorProfileNotFoundError) {
       return NextResponse.json({ error: err.message }, { status: 403 });
@@ -80,7 +93,12 @@ export async function PATCH(
 ) {
   try {
     const session = await apiAuth([ROLES.USER]);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const params = await paramsPromise; // Unpack the promise here
+
     const userId = parseInt(session.user.id, 10);
     if (isNaN(userId)) return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
 
@@ -90,24 +108,76 @@ export async function PATCH(
     // Verify ownership before proceeding
     await verifyEpisodeOwnership(params.slug, episodeId, userId);
 
-    const json = await req.json();
-    const validation = updateEpisodeSchema.safeParse(json);
+    let dataToUpdate: Record<string, any> = {};
+    let thumbnailUrl: string | null | undefined;
+    let removeThumbnail: boolean = false;
 
-    if (!validation.success) {
-      return NextResponse.json({ error: "Invalid request body", details: validation.error.format() }, { status: 400 });
+    // Determine if the request is JSON or FormData
+    const contentType = req.headers.get("content-type");
+    if (contentType?.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      const title = formData.get("title") as string;
+      const description = formData.get("description") as string;
+      const episodeNumber = formData.get("episodeNumber") as string;
+      const publishedAtStr = formData.get("publishedAt") as string;
+      const thumbnail = formData.get("thumbnail") as File;
+      removeThumbnail = formData.get("removeThumbnail") === "true";
+
+      // Validate fields from FormData
+      const validation = updateEpisodeSchema.safeParse({
+        title,
+        description: description === 'null' ? null : description, // Handle 'null' string from FormData
+        episodeNumber: episodeNumber ? parseInt(episodeNumber, 10) : undefined,
+        publishedAt: publishedAtStr || undefined,
+      });
+
+      if (!validation.success) {
+        return NextResponse.json({ error: "Invalid form data", details: validation.error.format() }, { status: 400 });
+      }
+
+      dataToUpdate = validation.data;
+
+      // Handle thumbnail file upload
+      if (thumbnail && thumbnail.size > 0) {
+        const uploadResult = await handleFileUpload(thumbnail, "episode-thumbnails");
+        if (uploadResult.success) {
+          thumbnailUrl = uploadResult.filePath;
+        } else {
+          return NextResponse.json({ error: uploadResult.error }, { status: 500 });
+        }
+      } else if (removeThumbnail) {
+        thumbnailUrl = null; // Explicitly set to null to remove
+      }
+      // If no new thumbnail and not removing, thumbnailUrl remains undefined (no change)
+
+    } else {
+      // Assume JSON request
+      const json = await req.json();
+      const validation = updateEpisodeSchema.safeParse(json);
+
+      if (!validation.success) {
+        return NextResponse.json({ error: "Invalid request body", details: validation.error.format() }, { status: 400 });
+      }
+      dataToUpdate = validation.data;
+      thumbnailUrl = dataToUpdate.thumbnailUrl; // Get thumbnailUrl from JSON if present
     }
 
-    const { publishedAt, ...dataToUpdate } = validation.data;
+    // Fetch the existing episode to potentially delete old thumbnail
+    const existingEpisode = await prisma.episode.findUnique({ where: { id: episodeId }, select: { thumbnailUrl: true } });
 
     const updatedEpisode = await prisma.episode.update({
       where: { id: episodeId },
       data: {
         ...dataToUpdate,
-        // Handle publishedAt separately to convert string to Date or set to null
-        // If `publishedAt` is not in the payload, it will be undefined and this field will not be updated.
-        publishedAt: typeof publishedAt === 'undefined' ? undefined : (publishedAt ? new Date(publishedAt) : null),
+        publishedAt: typeof dataToUpdate.publishedAt === 'undefined' ? undefined : (dataToUpdate.publishedAt ? new Date(dataToUpdate.publishedAt) : null),
+        thumbnailUrl: thumbnailUrl, // Update thumbnailUrl based on logic above
       },
     });
+
+    // If a new thumbnail was uploaded or removed, delete the old one if it existed
+    if (thumbnailUrl !== undefined && existingEpisode?.thumbnailUrl && existingEpisode.thumbnailUrl !== thumbnailUrl) {
+      await deleteFile(existingEpisode.thumbnailUrl);
+    }
 
     return NextResponse.json({ success: true, episode: updatedEpisode });
   } catch (err: any) {

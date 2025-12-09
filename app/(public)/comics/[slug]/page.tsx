@@ -76,6 +76,7 @@ export default async function ComicHomePage({ params: paramsProp }: ComicHomePag
     <PostViewer
       title={data.post.title}
       images={data.post.images}
+      activePostSlug={data.post.slug} // Pass the slug of the latest post
       prevPostHref={data.prevPostHref}
       nextPostHref={data.nextPostHref}
     />

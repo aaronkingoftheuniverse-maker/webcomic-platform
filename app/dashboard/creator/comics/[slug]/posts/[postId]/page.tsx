@@ -1,17 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, ChangeEvent, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Loader2, Edit, Save, X, ImageIcon, Calendar, CheckCircle, Edit2 } from "lucide-react";
+import { Loader2, Edit, Save, X, ImageIcon, Calendar, CheckCircle, Edit2, Trash2, Star } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import api from "@/lib/apiClient";
-import { PostDTO } from "@/types/api/posts";
+import { Breadcrumbs, BreadcrumbItem } from "@/components/ui/Breadcrumbs";
+import { PostDTO, ImageDTO } from "@/types/api/posts";
+
+const MAX_FILE_SIZE_MB = 5;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+/**
+ * Constructs the full URL for a stored image.
+ */
+function getImageUrl(relativePath: string | null | undefined): string | null {
+  if (!relativePath) return null;
+  const baseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL;
+  if (!baseUrl) return relativePath;
+  if (baseUrl.startsWith("http")) return new URL(relativePath, baseUrl).href;
+  return `${baseUrl.replace(/\/$/, "")}/${relativePath.replace(/^\//, "")}`;
+}
 
 export default function PostDetailPage() {
   const router = useRouter();
@@ -22,41 +38,84 @@ export default function PostDetailPage() {
   const [post, setPost] = useState<PostDTO | null>(null);
   const [editablePost, setEditablePost] = useState<Partial<PostDTO> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([]);
   const [isEditing, setIsEditing] = useState(false);
 
-  useEffect(() => {
-    if (!slug || !postId) return;
+  // State for image management
+  const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
+  const [imagesToDelete, setImagesToDelete] = useState<number[]>([]);
 
-    async function fetchPost() {
-      try {
-        const data = await api.posts.get(slug, Number(postId));
-        setPost(data.post);
-        setEditablePost(data.post);
-      } catch (error: any) {
-        toast.error(error.message);
-      } finally {
-        setLoading(false);
-      }
+  const fetchPost = useCallback(async () => {
+    if (!slug || !postId) return;
+    try {
+      const data = await api.posts.get(slug, Number(postId));
+      setPost(data.post);
+      setEditablePost(data.post);
+      setBreadcrumbs(data.breadcrumbs);
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
     }
+  }, [slug, postId]); // Dependencies for the callback
+
+  useEffect(() => {
+    // Initial fetch on component mount
     fetchPost();
-  }, [slug, postId]);
+  }, [fetchPost]);
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    const validFiles = files.filter(file => {
+      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+        toast.error(`Invalid file type: ${file.name}`);
+        return false;
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast.error(`File is too large: ${file.name}`);
+        return false;
+      }
+      return true;
+    });
+    setNewImageFiles(prev => [...prev, ...validFiles]);
+  };
+
+  const removeNewImage = (index: number) => {
+    setNewImageFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const markImageForDeletion = (imageId: number) => {
+    setImagesToDelete(prev => [...prev, imageId]);
+    setEditablePost(prev => ({
+      ...prev,
+      images: prev?.images?.filter(img => img.id !== imageId) || [],
+      thumbnailImage: prev?.thumbnailImage?.id === imageId ? null : prev?.thumbnailImage,
+    }));
+  };
+
+  const setAsThumbnail = (image: ImageDTO) => {
+    setEditablePost(prev => ({ ...prev, thumbnailImage: image }));
+  };
 
   const handleSave = async () => {
     if (!slug || !postId || !editablePost) return;
     setLoading(true);
     try {
-      // The API returns { ok: true }, not the updated post object.
-      await api.posts.update(slug, Number(postId), {
-        title: editablePost.title,
-        description: editablePost.description,
-        publishedAt: editablePost.publishedAt,
-      });
+      const formData = new FormData();
+      if (editablePost.title) formData.append("title", editablePost.title);
+      if (editablePost.description) formData.append("description", editablePost.description);
+      if (editablePost.publishedAt) formData.append("publishedAt", editablePost.publishedAt);
+      formData.append("imagesToDelete", JSON.stringify(imagesToDelete));
+      formData.append("thumbnailImageId", editablePost.thumbnailImage?.id?.toString() ?? 'null');
+      newImageFiles.forEach((file, index) => formData.append(`images[${index}]`, file));
 
-      // Manually update local state since API doesn't return the full object
-      setPost(prev => ({ ...prev!, ...editablePost }));
+      await api.posts.updateWithFormData(slug, Number(postId), formData);
+
       setIsEditing(false);
       toast.success("Post updated!");
-      router.refresh(); // Refresh server components on parent pages
+      // Refetch data to get the latest state
+      await fetchPost();
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -66,6 +125,8 @@ export default function PostDetailPage() {
 
   const handleCancel = () => {
     setEditablePost(post);
+    setNewImageFiles([]);
+    setImagesToDelete([]);
     setIsEditing(false);
   };
 
@@ -79,6 +140,7 @@ export default function PostDetailPage() {
 
   return (
     <div className="p-6 bg-white rounded-xl shadow-md max-w-4xl mx-auto space-y-6">
+      <Breadcrumbs items={breadcrumbs} />
       <div className="flex justify-between items-start">
         <div>
           {isEditing ? (
@@ -119,6 +181,86 @@ export default function PostDetailPage() {
             <p className="text-gray-700">{post.description || "No description provided."}</p>
           )}
         </div>
+
+        {/* === THUMBNAIL SECTION === */}
+        <div className="space-y-2">
+          <h3 className="font-semibold">Thumbnail</h3>
+          {editablePost.thumbnailImage ? (
+            <div className="relative w-40">
+              <Image
+                src={getImageUrl(editablePost.thumbnailImage.filename)!}
+                alt="Current thumbnail"
+                width={160}
+                height={160}
+                className="object-cover rounded-md aspect-square"
+              />
+              {isEditing && (
+                <Button size="sm" variant="destructive" className="mt-2 w-full" onClick={() => setEditablePost(prev => ({...prev, thumbnailImage: null}))}>
+                  <Trash2 className="w-4 h-4 mr-2" /> Remove Thumbnail
+                </Button>
+              )}
+            </div>
+          ) : (
+            <p className="text-gray-500 italic">No thumbnail set. {isEditing && "Select one from the images below."}</p>
+          )}
+        </div>
+
+        {/* === POST IMAGES SECTION === */}
+        <div className="space-y-2">
+          <h3 className="font-semibold">Post Pages</h3>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+            {/* View/Edit Existing Images */}
+            {editablePost.images?.map(image => (
+              <div key={image.id}>
+                <div className="relative">
+                  <Image
+                    src={getImageUrl(image.filename)!}
+                    alt={`Post image ${image.id}`}
+                    width={150}
+                    height={150}
+                    className={`object-cover rounded-md w-full aspect-square ${editablePost.thumbnailImage?.id === image.id ? 'ring-4 ring-blue-500' : ''}`}
+                  />
+                </div>
+                {isEditing && (
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                    <Button size="icon" variant="outline" title="Set as thumbnail" onClick={() => setAsThumbnail(image)}>
+                      <Star className="w-4 h-4" />
+                    </Button>
+                    <Button size="icon" variant="destructive" title="Remove image" onClick={() => markImageForDeletion(image.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {/* Display New Images for Upload */}
+            {isEditing && newImageFiles.map((file, index) => (
+              <div key={index}>
+                <Image
+                  src={URL.createObjectURL(file)}
+                  alt={`New image ${index + 1}`}
+                  width={150}
+                  height={150}
+                  className="object-cover rounded-md w-full aspect-square"
+                />
+                <div className="flex items-center justify-center mt-2">
+                  <Button size="icon" variant="destructive" title="Cancel upload" onClick={() => removeNewImage(index)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {/* Upload Button */}
+            {isEditing && (
+              <label htmlFor="image-upload" className="cursor-pointer w-full aspect-square border-2 border-dashed rounded-md flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 hover:border-blue-500 transition-colors">
+                <ImageIcon size={32} />
+                <p className="mt-2 text-xs text-center">Add Images</p>
+                <input id="image-upload" type="file" multiple className="hidden" onChange={handleFileChange} accept={ALLOWED_FILE_TYPES.join(",")} />
+              </label>
+            )}
+          </div>
+        </div>
+
         {isEditing && (
           <div className="space-y-2 rounded-lg border p-4">
             <label className="font-semibold">Publish Status</label>

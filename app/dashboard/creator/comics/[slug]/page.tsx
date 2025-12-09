@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, ChangeEvent, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { ImageIcon, PlusCircle, Calendar, CheckCircle, Edit2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ImageIcon, PlusCircle, Calendar, CheckCircle, Edit2, Save, X, Trash2, Edit } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/apiClient";
 
@@ -19,14 +16,25 @@ import { ComicDetailDTO } from "@/types/api/comics"; // Import from types file
 import { EpisodeDTO } from "@/types/api/episodes"; // Import from types file
 import { PostDTO } from "@/types/api/posts"; // Import from types file
 
+const MAX_FILE_SIZE_MB = 2;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 /**
  * Constructs the full URL for a stored image.
  * Prepends the base storage URL from environment variables.
  */
-function getImageUrl(relativePath: string | null): string | null {
+function getImageUrl(relativePath: string | null | undefined): string | null {
   if (!relativePath) return null;
-  return `${process.env.NEXT_PUBLIC_STORAGE_BASE_URL}${relativePath}`;
+  const baseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL;
+  if (!baseUrl) {
+    return relativePath;
+  }
+  if (baseUrl.startsWith("http")) {
+    return new URL(relativePath, baseUrl).href;
+  }
+  // Otherwise, handle as a relative path, preventing double slashes.
+  return `${baseUrl.replace(/\/$/, "")}/${relativePath.replace(/^\//, "")}`;
 }
 
 export default function ComicDetailPage() {
@@ -36,25 +44,76 @@ export default function ComicDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [comic, setComic] = useState<ComicDetailDTO | null>(null);
+  const [editableComic, setEditableComic] = useState<Partial<ComicDetailDTO> | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
 
-  console.log("[PAGE] Component rendered with slug:", slug);
-  console.log("PAGE!!!!!!!!!! slug:", slug);
-
-  useEffect(() => {
+  const loadComicDetails = useCallback(async () => {
     if (!slug) return;
-    loadComicDetails();
-  }, [slug]);
-
-  async function loadComicDetails() {
-    console.log(`[PAGE] ==> Fetching data for slug: ${slug}`);
     setLoading(true);
     try {
       const response = await api.comics.get(slug);
-      console.log("[PAGE] <== Received API response:", response);
       setComic(response.comic);
+      setEditableComic(response.comic);
+      setCoverImagePreview(response.comic.coverImage ? getImageUrl(response.comic.coverImage) : null);
     } catch (err: any) {
       console.error(err);
-      toast.error(err?.message || "Failed to load comic or posts");
+      toast.error(err?.message || "Failed to load comic details");
+    } finally {
+      setLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    loadComicDetails();
+  }, [loadComicDetails]);
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      return toast.error("Invalid file type. Please use JPG, PNG, or WEBP.");
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return toast.error(`File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB.`);
+    }
+
+    setCoverImageFile(file);
+    setCoverImagePreview(URL.createObjectURL(file));
+  };
+
+  const removeCoverImage = () => {
+    setCoverImageFile(null);
+    setCoverImagePreview(null);
+    setEditableComic(prev => ({ ...prev, coverImage: null }));
+    const fileInput = document.getElementById('cover-image-input') as HTMLInputElement;
+    if (fileInput) fileInput.value = "";
+  };
+
+  const handleSave = async () => {
+    if (!slug || !editableComic) return;
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      if (editableComic.title) formData.append("title", editableComic.title);
+      if (editableComic.description) formData.append("description", editableComic.description);
+      if (coverImageFile) formData.append("coverImage", coverImageFile);
+      if (editableComic.coverImage === null && !coverImageFile) {
+        formData.append("removeCoverImage", "true");
+      }
+
+      const updatedData = await api.comics.updateWithFormData(slug, formData);
+      setComic(updatedData.comic);
+      setEditableComic(updatedData.comic);
+      setCoverImageFile(null);
+      setIsEditing(false);
+      toast.success("Comic updated successfully!");
+      router.refresh();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Failed to save comic");
     } finally {
       setLoading(false);
     }
@@ -72,11 +131,69 @@ export default function ComicDetailPage() {
     return <div className="p-6 bg-white rounded-xl shadow-md max-w-xl text-red-500">Comic not found.</div>;
   }
 
+  const handleCancel = () => {
+    setEditableComic(comic);
+    setCoverImagePreview(comic?.coverImage ? getImageUrl(comic.coverImage) : null);
+    setIsEditing(false);
+  };
+
   return (
     <div className="p-6 bg-white rounded-xl shadow-md max-w-4xl">
-      <h2 className="text-2xl font-semibold mb-2">{comic.title}</h2>
-      <p className="text-gray-700 mb-6">{comic.description}</p>
+      <div className="flex justify-between items-start mb-6">
+        <div className="flex-grow space-y-2">
+          {isEditing ? (
+            <Input
+              className="text-2xl font-bold"
+              value={editableComic?.title || ""}
+              onChange={(e) => setEditableComic({ ...editableComic, title: e.target.value })}
+            />
+          ) : (
+            <h2 className="text-2xl font-semibold">{comic.title}</h2>
+          )}
+          {isEditing ? (
+            <Textarea
+              value={editableComic?.description || ""}
+              onChange={(e) => setEditableComic({ ...editableComic, description: e.target.value })}
+            />
+          ) : (
+            <p className="text-gray-700">{comic.description || "No description provided."}</p>
+          )}
+        </div>
+        <div className="flex-shrink-0 ml-4">
+          {isEditing ? (
+            <div className="flex gap-2">
+              <Button onClick={handleSave} size="sm" disabled={loading}><Save className="mr-2 h-4 w-4" /> Save</Button>
+              <Button onClick={handleCancel} size="sm" variant="outline"><X className="mr-2 h-4 w-4" /> Cancel</Button>
+            </div>
+          ) : (
+            <Button onClick={() => setIsEditing(true)} size="sm" variant="ghost"><Edit className="mr-2 h-4 w-4" /> Edit</Button>
+          )}
+        </div>
+      </div>
 
+      <div className="space-y-4">
+        <div>
+          <label className="font-semibold">Cover Image</label>
+          <div className="mt-2">
+            {isEditing ? (
+              <div className="w-40">
+                {coverImagePreview ? (
+                  <div className="relative">
+                    <Image src={coverImagePreview} alt="Cover preview" width={160} height={160} className="object-cover rounded-md aspect-square" />
+                    <Button variant="destructive" size="sm" className="mt-2 w-full" onClick={removeCoverImage}><Trash2 className="w-4 h-4 mr-2" /> Remove</Button>
+                  </div>
+                ) : (
+                  <div className="w-40 h-40 border-2 border-dashed rounded-md flex flex-col items-center justify-center text-gray-500"><ImageIcon size={32} /><p className="mt-2 text-xs">Add Cover</p></div>
+                )}
+                <Input id="cover-image-input" type="file" className="mt-2" onChange={handleFileChange} accept={ALLOWED_FILE_TYPES.join(",")} />
+              </div>
+            ) : (
+              coverImagePreview ? <Image src={coverImagePreview} alt="Comic cover" width={160} height={160} className="object-cover rounded-md" /> : <p className="text-gray-500 italic">No cover image.</p>
+            )}
+          </div>
+        </div>
+      </div>
+      
       <div className="flex gap-4 mb-6">
         <Button onClick={() => router.push(`/dashboard/creator/comics/${slug}/episodes/new`)}>
           + New Episode

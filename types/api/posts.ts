@@ -1,9 +1,6 @@
 import { z } from "zod";
+import { BreadcrumbItem } from "@/components/ui/Breadcrumbs";
 
-/**
- * Represents the public-safe data for an image.
- * This is a more generic and reusable type than the original PostImageDTO.
- */
 export interface ImageDTO {
   id: number;
   filename: string;
@@ -15,29 +12,18 @@ export interface ImageDTO {
 
 export interface PostDTO {
   id: number;
+  postNumber: number;
   title: string;
   slug: string;
   description: string | null;
-  postNumber: number;
   episodeId: number;
   publishedAt: string | null;
+  images: ImageDTO[];
+  thumbnailImage: ImageDTO | null;
   createdAt: string;
   updatedAt: string;
-  images?: ImageDTO[];
-  thumbnailImage?: ImageDTO | null;
 }
 
-export interface FetchPostsResponse {
-  posts: PostDTO[];
-}
-
-export interface FetchPostResponse {
-  post: PostDTO;
-}
-
-/**
- * Represents a simplified Post object for list views.
- */
 export interface PostListItemDTO {
   id: number;
   postNumber: number;
@@ -46,30 +32,15 @@ export interface PostListItemDTO {
   createdAt: string;
 }
 
-export interface CreatePostRequest {
-  title: string;
-  description?: string | null;
-  episodeId: number;
-  publishedAt?: string | null;
+export interface FetchPostsResponse {
+  posts: PostListItemDTO[];
 }
 
-export interface CreatePostResponse {
-  ok: true;
+export interface FetchPostResponse {
   post: PostDTO;
+  breadcrumbs: BreadcrumbItem[];
 }
 
-export interface UpdatePostRequest {
-  title?: string;
-  description?: string | null;
-  publishedAt?: string | null;
-}
-
-export interface UpdatePostResponse {
-  ok: true;
-  post: PostDTO;
-}
-
-/* Zod validation */
 export const createPostSchema = z.object({
   title: z.string().min(1),
   description: z.string().nullable().optional(),

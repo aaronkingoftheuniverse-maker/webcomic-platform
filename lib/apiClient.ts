@@ -104,6 +104,15 @@ export const api = {
         body: JSON.stringify(payload),
       }),
 
+    updateWithFormData: (
+      comicSlug: string | number,
+      payload: FormData
+    ): Promise<UpdateComicResponse> =>
+      fetchJson(`/api/creator/comics/${comicSlug}`, {
+        method: "PATCH",
+        body: payload,
+      }),
+
     delete: (comicSlug: string | number): Promise<{ ok: true }> =>
       fetchJson(`/api/creator/comics/${comicSlug}`, {
         method: "DELETE",
@@ -136,6 +145,16 @@ export const api = {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+      }),      
+      
+    updateWithFormData: (
+      comicSlug: string,
+      episodeId: number,
+      payload: FormData
+    ): Promise<UpdateEpisodeResponse> =>
+      fetchJson(`/api/creator/comics/${comicSlug}/episodes/${episodeId}`, {
+        method: "PATCH",
+        body: payload, // FormData will set Content-Type: multipart/form-data automatically
       }),
   },
 
@@ -171,6 +190,16 @@ export const api = {
         body: JSON.stringify(payload),
       }),
 
+    updateWithFormData: (
+      comicSlug: string,
+      postId: number,
+      payload: FormData
+    ): Promise<{ ok: true }> =>
+      fetchJson(`/api/creator/comics/${comicSlug}/posts/${postId}`, {
+        method: "PATCH",
+        body: payload,
+      }),
+
     delete: (
       comicSlug: string,
       postId: number
@@ -199,12 +228,11 @@ export const api = {
       fetchJson("/api/creator/profile"),
 
     saveProfile: (
-      payload: UpdateCreatorProfilePayload
+      payload: FormData
     ): Promise<CreatorProfile> =>
       fetchJson("/api/creator/profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: payload,
       }),
   },
 };

@@ -17,22 +17,32 @@ export type NavEpisode = { id: number; title: string; thumbnailUrl: string | nul
 
 interface ComicNavTreeProps {
   comicSlug: string;
+  comicTitle: string;
   episodes: NavEpisode[];
+  activePostSlug?: string; // Make this optional
 }
 
 function getImageUrl(relativePath: string | null | undefined): string | null {
   if (!relativePath) return null;
-  return `${process.env.NEXT_PUBLIC_STORAGE_BASE_URL}${relativePath}`;
+  const baseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL;
+  if (!baseUrl) {
+    return relativePath;
+  }
+  if (baseUrl.startsWith("http")) {
+    return new URL(relativePath, baseUrl).href;
+  }
+  // Otherwise, handle as a relative path, preventing double slashes.
+  return `${baseUrl.replace(/\/$/, "")}/${relativePath.replace(/^\//, "")}`;
 }
 
-export function ComicNavTree({ comicSlug, episodes }: ComicNavTreeProps) {
+export function ComicNavTree({ comicSlug, comicTitle, episodes, activePostSlug }: ComicNavTreeProps) {
   return (
     <aside className="p-4 bg-gray-100/80 rounded-lg border border-gray-200/80">
-      <h3 className="font-bold mb-2 text-lg">Archive</h3>
+      <h3 className="font-bold mb-2 text-lg">{comicTitle}</h3>
       <TooltipProvider>
         <div className="space-y-1">
           {episodes.map((episode) => (
-            <EpisodeNavItem key={episode.id} episode={episode} comicSlug={comicSlug} level={0} />
+            <EpisodeNavItem key={episode.id} episode={episode} comicSlug={comicSlug} level={0} activePostSlug={activePostSlug} />
           ))}
         </div>
       </TooltipProvider>
@@ -40,7 +50,7 @@ export function ComicNavTree({ comicSlug, episodes }: ComicNavTreeProps) {
   );
 }
 
-function EpisodeNavItem({ episode, comicSlug, level }: { episode: NavEpisode; comicSlug: string; level: number }) {
+function EpisodeNavItem({ episode, comicSlug, level, activePostSlug }: { episode: NavEpisode; comicSlug: string; level: number; activePostSlug?: string }) {
   const indentation = { paddingLeft: `${level * 1}rem` };
 
   return (
@@ -51,24 +61,22 @@ function EpisodeNavItem({ episode, comicSlug, level }: { episode: NavEpisode; co
       </div>
       <div className="space-y-px">
         {episode.posts.map(post => (
-          <PostNavItem key={post.id} post={post} comicSlug={comicSlug} level={level + 1} />
+          <PostNavItem key={post.id} post={post} comicSlug={comicSlug} level={level + 1} activePostSlug={activePostSlug} />
         ))}
         {(episode.childEpisodes || []).map(child => (
-          <EpisodeNavItem key={child.id} episode={child} comicSlug={comicSlug} level={level + 1} />
+          <EpisodeNavItem key={child.id} episode={child} comicSlug={comicSlug} level={level + 1} activePostSlug={activePostSlug} />
         ))}
       </div>
     </div>
   );
 }
 
-function PostNavItem({ post, comicSlug, level }: { post: NavPost; comicSlug: string; level: number }) {
-  const params = useParams();
-  const currentPostSlug = params.postSlug;
-  const isActive = currentPostSlug === post.slug;
+function PostNavItem({ post, comicSlug, level, activePostSlug }: { post: NavPost; comicSlug:string; level: number; activePostSlug?: string }) {
+  const isActive = activePostSlug === post.slug;
   const indentation = { paddingLeft: `${level * 1}rem` };
 
   return (
-    <Link href={`/comics/${comicSlug}/${post.slug}`} style={indentation} className={`flex items-center gap-2 py-1 px-2 rounded-md transition-colors ${isActive ? 'bg-blue-100 font-semibold text-blue-800' : 'hover:bg-gray-200'}`}>
+    <Link href={`/comics/${comicSlug}/${post.slug}`} style={indentation} className={`flex items-center gap-2 py-1 px-2 rounded-md transition-colors ${isActive ? 'bg-blue-100 font-semibold text-blue-800' : 'text-gray-900 hover:bg-gray-200'}`}>
       <ItemThumbnail src={getImageUrl(post.thumbnailImage?.filename)} alt={post.title} />
       <span className="flex-grow text-sm">{post.title}</span>
     </Link>

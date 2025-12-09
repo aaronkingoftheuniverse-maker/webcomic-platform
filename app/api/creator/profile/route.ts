@@ -3,10 +3,7 @@ import { prisma } from "@/config/prisma";
 import { apiAuth } from "@/lib/auth";
 import { ROLES } from "@/lib/roles";
 import { z } from "zod";
-import { saveFile } from "@/lib/fileHelpers"; // Assuming this helper exists
-
-// This forces the route to be dynamic, preventing the response from being cached.
-export const dynamic = "force-dynamic";
+import { handleFileUpload, deleteFile } from "@/lib/uploads";
 
 export async function GET(req: NextRequest) {
   try {
@@ -43,9 +40,11 @@ export async function GET(req: NextRequest) {
 }
 
 const profileUpdateSchema = z.object({
-  bio: z.string().max(5000).optional().nullable(),
-  website: z.string().url().or(z.literal("")).optional().nullable(),
-  avatarUrl: z.string().url().or(z.literal("")).optional().nullable(),
+  // This schema is now more robust to handle potentially undefined fields from FormData
+  bio: z.union([z.string().max(5000), z.null(), z.undefined()]),
+  website: z.union([z.string().url(), z.literal(""), z.null(), z.undefined()]),
+  // The avatarUrl is a relative path, not a full URL, so we should not use .url() validation here.
+  avatarUrl: z.union([z.string(), z.literal(""), z.null(), z.undefined()]),
 });
 
 export async function POST(req: NextRequest) {
@@ -65,32 +64,36 @@ export async function POST(req: NextRequest) {
     const website = formData.get("website") as string | null;
     const avatarFile = formData.get("avatar") as File | null;
 
-    let avatarUrl: string | undefined = undefined;
+    // Fetch the existing profile to see if there's an old avatar to delete
+    const existingProfile = await prisma.creatorProfile.findUnique({
+      where: { userId },
+      select: { avatarUrl: true },
+    });
+
+    let newAvatarPath: string | undefined = undefined;
 
     if (avatarFile) {
-      try {
-        // Using the same constants as the frontend for validation
-        const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
-        const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "image/webp"];
-        avatarUrl = await saveFile(
-          avatarFile,
-          "avatars", // A dedicated folder for avatars
-          ALLOWED_FILE_TYPES,
-          MAX_FILE_SIZE_BYTES
-        );
-      } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
+      const uploadResult = await handleFileUpload(avatarFile, "avatars");
+      if (uploadResult.success) {
+        newAvatarPath = uploadResult.filePath;
+      } else {
+        return NextResponse.json({ error: uploadResult.error }, { status: 400 });
       }
     }
 
-    const dataToValidate: { bio?: string | null; website?: string | null; avatarUrl?: string } = { bio, website };
-    if (avatarUrl) {
-      dataToValidate.avatarUrl = avatarUrl;
+    const dataToValidate: { bio?: string | null; website?: string | null; avatarUrl?: string } = {
+      bio,
+      website,
+    };
+    if (newAvatarPath) {
+      dataToValidate.avatarUrl = newAvatarPath;
     }
 
     const parsedBody = profileUpdateSchema.safeParse(dataToValidate);
 
     if (!parsedBody.success) {
+      // If validation fails, and we uploaded a new file, we should delete it.
+      if (newAvatarPath) await deleteFile(newAvatarPath);
       return NextResponse.json({ error: "Invalid request body", details: parsedBody.error.format() }, { status: 400 });
     }
 
@@ -99,6 +102,11 @@ export async function POST(req: NextRequest) {
       update: parsedBody.data,
       create: { ...parsedBody.data, userId },
     });
+
+    // If a new avatar was successfully uploaded and saved, delete the old one.
+    if (newAvatarPath && existingProfile?.avatarUrl) {
+      await deleteFile(existingProfile.avatarUrl);
+    }
 
     return NextResponse.json(profile);
   } catch (err) {

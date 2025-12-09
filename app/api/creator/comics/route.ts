@@ -4,7 +4,7 @@ import { z } from "zod";
 import { mapComicToDTO } from "@/lib/dtoMappers";
 import { requireCreatorProfile, generateSlug } from "@/lib/creatorHelpers";
 import { apiAuth } from "@/lib/auth";
-import { saveFile } from "@/lib/fileHelpers";
+import { handleFileUpload } from "@/lib/uploads";
 import { ROLES } from "@/lib/roles";
 import { CreatorProfileNotFoundError } from "@/lib/errors";
 
@@ -116,20 +116,18 @@ export async function POST(req: NextRequest) {
 
     // --- Step 2 & 3: Validate and save the file if it exists ---
     if (coverImageFile) {
-      try {
-        // Create a new File object with the desired filename (based on the comic title)
-        // This ensures the saved file has a semantic name, not the original upload name.
-        const newFileName = `${generateSlug(title)}${coverImageFile.name.substring(coverImageFile.name.lastIndexOf('.'))}`;
-        const renamedFile = new File([coverImageFile], newFileName, { type: coverImageFile.type });
+      // Create a new File object with the desired filename (based on the comic title)
+      // This ensures the saved file has a semantic name, not the original upload name.
+      const newFileName = `${generateSlug(title)}${coverImageFile.name.substring(coverImageFile.name.lastIndexOf('.'))}`;
+      const renamedFile = new File([coverImageFile], newFileName, { type: coverImageFile.type });
 
-        coverImagePath = await saveFile(
-          renamedFile,
-          "comics/covers",
-          ALLOWED_FILE_TYPES,
-          MAX_FILE_SIZE_BYTES
-        );
-      } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
+      const uploadResult = await handleFileUpload(renamedFile, "comics/covers");
+
+      if (uploadResult.success) {
+        coverImagePath = uploadResult.filePath;
+      } else {
+        // handleFileUpload returns a clear error message
+        return NextResponse.json({ error: uploadResult.error }, { status: 400 });
       }
     }
 

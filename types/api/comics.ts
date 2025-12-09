@@ -37,7 +37,7 @@ export interface UpdateComicRequest {
 }
 export interface UpdateComicResponse {
   ok: true;
-  comic: ComicCardData;
+  comic: ComicDetailDTO;
 }
 export interface DeleteComicResponse {
   ok: true;

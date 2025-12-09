@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PostDTO } from "./posts"; // Import PostDTO
+import { BreadcrumbItem } from "@/components/ui/Breadcrumbs";
 
 export interface EpisodeDTO {
   id: number;
@@ -19,6 +20,7 @@ export interface EpisodeDTO {
 
 export interface FetchEpisodeResponse {
   episode: EpisodeDTO;
+  breadcrumbs: BreadcrumbItem[];
 }
 
 export interface CreateEpisodeRequest {
@@ -38,7 +40,8 @@ export interface UpdateEpisodeRequest {
   title?: string;
   description?: string | null;
   episodeNumber?: number;
-  publishedAt?: string | null;
+  publishedAt?: string | null; // Can be string (ISO date) or null
+  thumbnailUrl?: string | null; // Can be string (URL) or null (for removal)
 }
 
 export interface UpdateEpisodeResponse {
